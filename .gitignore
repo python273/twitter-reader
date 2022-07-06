@@ -1,0 +1,4 @@
+app/public/tree_*
+**/node_modules
+thread_*
+.DS_Store
