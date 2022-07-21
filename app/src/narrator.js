@@ -35,6 +35,15 @@ Narrator.prototype = {
         // are not interesting since their text already appears in their
         // parent's textContent.
         acceptNode(node) {
+
+          let n = node;
+          while (n) {
+            if (n.classList && n.classList.contains('narrator-skip')) {
+              return NodeFilter.FILTER_SKIP
+            }
+            n = n.parentElement;
+          }
+
           if (this._matches.has(node.parentNode)) {
             // Reject sub-trees of accepted nodes.
             return nf.FILTER_REJECT;

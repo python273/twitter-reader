@@ -168,6 +168,75 @@ const esc = (s) => {
   });
 };
 
+const convertScrapedTo = (t, usersById) => {
+	const u = usersById[t.user_id_str];
+	const username = u.username;
+	const [byBgColor, byColor] = getUsernameColor(username);
+
+	const [a, b] = t['display_text_range'];
+	let text = t['full_text'].slice(a, b).trim();
+
+	const date = new Date(t.created_at);
+
+	const media = t?.extended_entities?.media || t?.entities?.media;
+	
+	// TODO: proper entitites parsing
+	t.entities.urls.forEach(e => {
+		text = text.replace(
+			e.url,
+			`<a href="${esc(e.expanded_url)}">${esc(e.expanded_url)}</a>`
+		);
+		text = text.replace('\ud83d\ude02', '😂');
+	});
+
+	// TODO: quoted tweet rendering
+
+	const collapsed = (
+		text.match(/@threadreaderapp/i)
+		|| username == 'threadreaderapp'
+	);
+
+	const obj =  {
+		// pad: [],
+		depth: t._depth,
+
+		_t: t,
+		id: t.id_str,
+
+		userId: t.user_id_str,
+		userData: u,
+		username,
+		byColor,
+		byBgColor,
+
+		isOP: t.user_id_str === opTweet.user_id_str,
+
+		favoriteCount: t.favorite_count,
+		quoteCount: t.quote_count,
+		retweetCount: t.retweet_count,
+
+		formattedTime: date.toLocaleString("en-US"),
+		timeAgo: timeSince(date),
+
+		collapsed,
+		text,
+
+		media,
+	};
+
+	if (t._parts) {
+		obj.parts = t._parts.map(t => convertScrapedTo(t, usersById));
+	} else {
+		obj.parts = [];
+	}
+
+	if (t._quoted) {
+		obj._quoted = convertScrapedTo(t._quoted, usersById);
+	}
+
+	return obj;
+}
+
 const fetchData = async () => {
 	const thread = await (await fetch(`/tree_${threadId}.json`)).json();
 	opTweet = thread['tree'][0];
@@ -190,57 +259,7 @@ const fetchData = async () => {
 	});
 	usersById = tempUsersById;
 
-	const tempTree = thread['tree'].map(t => {
-		const u = usersById[t.user_id_str];
-		const username = u.username;
-		const [byBgColor, byColor] = getUsernameColor(username);
-
-		const [a, b] = t['display_text_range'];
-		let text = t['full_text'].slice(a, b).trim();
-
-		const date = new Date(t.created_at);
-
-		const media = t?.extended_entities?.media || t?.entities?.media;
-		
-		// TODO: proper entitites parsing
-		t.entities.urls.forEach(e => {
-			text = text.replace(
-				e.url,
-				`<a href="${esc(e.expanded_url)}">${esc(e.expanded_url)}</a>`
-			);
-			text = text.replace('\ud83d\ude02', '😂');
-		});
-
-		// TODO: quoted tweet rendering
-
-		return {
-			// pad: [],
-			depth: t._depth,
-
-			_t: t,
-			id: t.id_str,
-
-			userId: t.user_id_str,
-			userData: u,
-			username,
-			byColor,
-			byBgColor,
-
-			isOP: t.user_id_str === opTweet.user_id_str,
-
-			favoriteCount: t.favorite_count,
-			quoteCount: t.quote_count,
-			retweetCount: t.retweet_count,
-
-			formattedTime: date.toLocaleString("en-US"),
-			timeAgo: timeSince(date),
-
-			collapsed: false,
-			text,
-
-			media,
-		};
-	});
+	const tempTree = thread['tree'].map(t => convertScrapedTo(t, usersById));
 
 	let tweetStack = [];
 	let prevDepth = 0;
@@ -346,37 +365,65 @@ onMount(fetchData);
 			</div>
 
 			<div class="comment-content" class:d-none="{c.collapsed}">
-				<p id="line-{c.id}">
-					{@html c.text}
-				</p>
+				{#each c.parts as p, pi (p.id)}
+					{#if pi > 0}
+						<div class="comment-header tweet-splitter narrator-skip">
+							<div style="flex-grow: 1;"><hr></div>
+							<span class="date meta-gray" title="{c.formattedTime}">{c.timeAgo}</span>
+							<div class="meta-gray">
+								{#if p.favoriteCount}♥{p.favoriteCount}{/if}
+								{#if p.retweetCount} <span style="font-weight: 800;">↻</span>{p.retweetCount}{/if}
+								{#if p.quoteCount} ❝{p.quoteCount}{/if}
+							</div>
+							<div>
+								<a class="no-vs" href={`https://twitter.com/${p.username}/status/${p.id}`} title="reply">
+									&#10149;&#xFE0E;
+								</a>
+							</div>
+						</div>
+					{/if}
+					
+					{#if p._quoted}
+						<p id="line-{p.id}-quote" class="quote quote-single-line" title={p._quoted.text}>
+							{@html p._quoted.text}
+						</p>
+					{/if}
 
-				{#if c.media}
-				<div>
-					{#each c.media as m, mi (m.id_str)}
-						{#if m.type === "photo"}
-							<a href={m['media_url_https']}>
-								<img class="attch" alt='' src={m['media_url_https']}/>
-							</a>
-						{:else if m.type === "video"}
-							<!-- svelte-ignore a11y-media-has-caption -->
-							<video class="attch" controls preload="metadata">
-								{#each m.video_info.variants as v}
-									<source src={v.url} type={v.content_type}>
-								{/each}
-							</video>
-						{:else if m.type === "animated_gif"}
-							<!-- svelte-ignore a11y-media-has-caption -->
-							<video class="attch-gif" controls loop autoplay preload="metadata">
-								{#each m.video_info.variants as v}
-									<source src={v.url} type={v.content_type}>
-								{/each}
-							</video>
-						{:else}
-							<pre>{JSON.stringify(m)}</pre>
-						{/if}
-					{/each}
-				</div>
-				{/if}
+					<p id="line-{p.id}">
+						{@html p.text}
+					</p>
+
+					{#if p.media}
+					<div>
+						{#each p.media as m, mi (m.id_str)}
+							{#if m.type === "photo"}
+								<a href={m['media_url_https']}>
+									<img class="attch" alt='' src={m['media_url_https']}/>
+								</a>
+							{:else if m.type === "video"}
+								<!-- svelte-ignore a11y-media-has-caption -->
+								<video class="attch" controls preload="metadata">
+									{#each m.video_info.variants as v}
+										<source src={v.url} type={v.content_type}>
+									{/each}
+								</video>
+							{:else if m.type === "animated_gif"}
+								<!-- svelte-ignore a11y-media-has-caption -->
+								<video class="attch-gif" controls loop autoplay preload="metadata">
+									{#each m.video_info.variants as v}
+										<source src={v.url} type={v.content_type}>
+									{/each}
+								</video>
+							{:else}
+								<pre>{JSON.stringify(m)}</pre>
+							{/if}
+						{/each}
+					</div>
+					{/if}
+
+
+				{/each}
+
 			</div>
 		</div>
 	</div>
@@ -406,8 +453,8 @@ onMount(fetchData);
 	color: var(--text-color);
 }
 
-:global(p) {
-	margin: 0.5em 0 0.5em 0;
+p {
+	margin: 0 0 1px 0;
 
 	line-height: 1.2;
 	font-size: 1em;
@@ -537,6 +584,18 @@ onMount(fetchData);
 	overflow: auto;
 }
 
+hr {
+	border: none;
+	border-top: 0.5px solid var(--meta-color);
+}
+
+.tweet-splitter {
+	display: flex;
+	margin: 0;
+	font-size: 0.75em;
+	opacity: 0.6;
+}
+
 :global(.comment-content a) {
 	overflow-wrap: break-word;
 	word-wrap: break-word;
@@ -552,24 +611,17 @@ onMount(fetchData);
 	margin-bottom: 0;
 }
 
-.title {
-	font-size: 1.2em;
-}
-
-.meta {
-	color: var(--meta-color);
-}
-
-.meta, .story a {
-	font-size: 0.8em;
-    font-family: monospace;
-}
-
-:global(.quote) {
+.quote {
 	background-color: rgba(0, 0, 0, 0.12);
 	/* border-left: 4px solid rgba(0, 0, 0, 0.507); */
 	border-left: 6px solid var(--text-color);
 	padding: 5px 0 5px 12px;
+}
+
+.quote-single-line {
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	overflow: hidden;
 }
 
 .colorScroll {

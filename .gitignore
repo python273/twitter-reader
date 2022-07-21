@@ -1,4 +1,4 @@
 app/public/tree_*
 **/node_modules
-thread_*
+thread_*.json
 .DS_Store

@@ -8,7 +8,7 @@ def process_replies(tweets, curr, depth=0, tree=None, author_id=None):
     if tree is None:
         tree = [] # flat tree (each item has depth value)
 
-    tree.append({**curr, '_depth': depth})
+    tree.append({**curr, '_parts': [curr], '_depth': depth})
     curr_id = curr['id_str']
 
     new_depth = depth + 1
