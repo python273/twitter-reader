@@ -184,7 +184,7 @@ const convertScrapedTo = (t, usersById) => {
 	t.entities.urls.forEach(e => {
 		text = text.replace(
 			e.url,
-			`<a href="${esc(e.expanded_url)}">${esc(e.expanded_url)}</a>`
+			`<a href="${esc(e.expanded_url)}">${esc(decodeURI(e.expanded_url))}</a>`
 		);
 		text = text.replace('\ud83d\ude02', '😂');
 	});
@@ -194,6 +194,8 @@ const convertScrapedTo = (t, usersById) => {
 	const collapsed = (
 		text.match(/@threadreaderapp/i)
 		|| username == 'threadreaderapp'
+		|| text.match(/sendvidbot/i)
+		|| username == 'sendvidbot'
 	);
 
 	const obj =  {
@@ -217,6 +219,8 @@ const convertScrapedTo = (t, usersById) => {
 
 		formattedTime: date.toLocaleString("en-US"),
 		timeAgo: timeSince(date),
+
+		quoted_status_id_str: t.quoted_status_id_str,
 
 		collapsed,
 		text,
@@ -393,23 +397,47 @@ onMount(fetchData);
 						{@html p.text}
 					</p>
 
+					{#if p.quoted_status_id_str}
+						<div><b style="color: red;">TODO: QUOTED TWEET</b></div>
+					{/if}
+
 					{#if p.media}
 					<div>
 						{#each p.media as m, mi (m.id_str)}
 							{#if m.type === "photo"}
 								<a href={m['media_url_https']}>
-									<img class="attch" alt='' src={m['media_url_https']}/>
+									<img
+										class="attch"
+										alt=''
+										src={m['media_url_https']}
+										width={m['original_info']['width']}
+										height={m['original_info']['height']}
+									/>
 								</a>
 							{:else if m.type === "video"}
 								<!-- svelte-ignore a11y-media-has-caption -->
-								<video class="attch" controls preload="metadata">
+								<video
+									class="attch"
+									controls
+									preload="metadata"
+									width={m['original_info']['width']}
+									height={m['original_info']['height']}
+								>
 									{#each m.video_info.variants as v}
 										<source src={v.url} type={v.content_type}>
 									{/each}
 								</video>
 							{:else if m.type === "animated_gif"}
 								<!-- svelte-ignore a11y-media-has-caption -->
-								<video class="attch-gif" controls loop autoplay preload="metadata">
+								<video
+									class="attch-gif"
+									controls
+									loop
+									autoplay
+									preload="metadata"
+									width={m['original_info']['width']}
+									height={m['original_info']['height']}
+								>
 									{#each m.video_info.variants as v}
 										<source src={v.url} type={v.content_type}>
 									{/each}
@@ -420,10 +448,7 @@ onMount(fetchData);
 						{/each}
 					</div>
 					{/if}
-
-
 				{/each}
-
 			</div>
 		</div>
 	</div>
