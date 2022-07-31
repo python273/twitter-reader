@@ -174,20 +174,22 @@ const convertScrapedTo = (t, usersById) => {
 	const [byBgColor, byColor] = getUsernameColor(username);
 
 	const [a, b] = t['display_text_range'];
-	let text = t['full_text'].slice(a, b).trim();
+	// some unicode madness, String.substr works too, but deprecated?
+	// String.slice and String.substring split unicode chars
+	let text = Array.from(t['full_text']).slice(a, b).join('');
 
 	const date = new Date(t.created_at);
 
 	const media = t?.extended_entities?.media || t?.entities?.media;
-	
+
 	// TODO: proper entitites parsing
 	t.entities.urls.forEach(e => {
-		text = text.replace(
+		text = text.replaceAll(
 			e.url,
 			`<a href="${esc(e.expanded_url)}">${esc(decodeURI(e.expanded_url))}</a>`
 		);
-		text = text.replace('\ud83d\ude02', '😂');
 	});
+	text = text.replaceAll('\n', '<br/>');
 
 	// TODO: quoted tweet rendering
 
@@ -314,7 +316,7 @@ onMount(fetchData);
 <div class="thread-container">
 
 <div class="comments" role="tree">
-{#each data as c, i (c.id)}
+{#each data as c, i}
 	<div class='comment-container'>
 		{#each {length: c.depth} as _, i}
 			<div class='pad' style="background: {c.pad[i].byBgColor};">
@@ -398,7 +400,8 @@ onMount(fetchData);
 					</p>
 
 					{#if p.quoted_status_id_str}
-						<div><b style="color: red;">TODO: QUOTED TWEET</b></div>
+						<div><b style="color: red;">TODO: QUOTED TWEET</b>
+							<a href={`https://twitter.com/qwe/status/${p.quoted_status_id_str}`}>click</a></div>
 					{/if}
 
 					{#if p.media}
