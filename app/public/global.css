@@ -28,7 +28,7 @@ button {
 	font-size: 1em;
 }
 
-.d-none { display: none; }
+.d-none { display: none !important; }
 .d-flex { display: flex; }
 
 .ml-auto {

@@ -46,7 +46,7 @@ function getUsernameColor(username) {
 let colorScroll = [];
 let totalScrollHeight = 0;
 async function updateColorScroll(data) {
-	if (!data) return;
+	if (!data || data.length === 0) return;
 	await tick();
 
 	const out = [];
@@ -149,24 +149,93 @@ let usersById = {};
 let opTweet = {};
 let data = [];
 
-const esc = (s) => {
-  return s.replace(/[&<>"']/g, function(m) {
-    switch (m) {
-      case '&':
-        return '&amp;';
-      case '<':
-        return '&lt;';
-      case '>':
-        return '&gt;';
-      case '"':
-        return '&quot;';
-      case "'":
-        return '&#039;';
-	  default:
-		return 'ERR';
-    }
-  });
-};
+const htmlEntities = {amp: '&', lt: '<', gt: '>', quot: '"', '#039': "'"}
+const reHtmlEntities = new RegExp(
+	`&(${Object.keys(htmlEntities).join('|')});`,
+	'g'
+);
+function unescapeHtmlEntities(str) {
+	return str.replace(reHtmlEntities, (m, c) => htmlEntities[c]);
+}
+
+function parseTextEntities(t) {
+	// Parse tweet entities and split text to paragraphs
+
+	let text = Array.from(t['full_text']);
+
+	const [displayA, displayB] = t['display_text_range'];
+
+	const allEntities = [
+		...t.entities.user_mentions.map(i => ({...i, _type: 'user_mention'})),
+		...t.entities.urls.map(i => ({...i, _type: 'url'})),
+		...t.entities.hashtags.map(i => ({...i, _type: 'hashtag'})),
+		// ...t.entities.symbols.map(i => ({...i, _type: 'symbol'})),
+	]
+
+	// dummy entity to parse text after the last real entity
+	allEntities.push({_type: 'end', indices: [displayB, displayB]});
+
+	allEntities.sort((a, b) => a.indices[0] - b.indices[0]);
+
+	const paragraphs = [];
+	let lastIndex = 0;
+	let currentParagraph = [];
+
+	for (let entity of allEntities) {
+		const [a, b] = entity.indices;
+
+		if (lastIndex < a) {
+			const textParagraphs = text.slice(lastIndex, a).join('').split(/\n{2,}/g);
+
+			for (const i in textParagraphs) {
+				if (i > 0) {
+					paragraphs.push(currentParagraph);
+					currentParagraph = [];
+				}
+				if (textParagraphs[i]) {
+					currentParagraph.push({
+						_type: 'text',
+						text: unescapeHtmlEntities(textParagraphs[i]).split('\n')
+					});
+				}
+			}
+		}
+
+		if (entity._type !== 'end') {
+			const e = {
+				_type: entity._type,
+				indices: [a, b],
+				text: text.slice(a, b).join(''),
+			};
+			if (e._type === 'user_mention') {
+				e.username = entity.screen_name;
+			} else if (e._type === 'url') {
+				e.url = entity.expanded_url;
+			} else if (e._type === 'hashtag') {
+				e.hashtag = entity.text;
+			}
+
+			currentParagraph.push(e);
+		}
+
+		lastIndex = b;
+	}
+
+	paragraphs.push(currentParagraph);
+
+	// remove parts out of visible range
+	for (let i in paragraphs) {
+		const p = paragraphs[i];
+		paragraphs[i] = p.filter(part => {
+			if (part._type === 'text') return true;
+			const [a, b] = part.indices;
+			return a >= displayA && b <= displayB;
+		})
+	}
+
+	return paragraphs;
+}
+
 
 const convertScrapedTo = (t, usersById) => {
 	const u = usersById[t.user_id_str];
@@ -176,31 +245,31 @@ const convertScrapedTo = (t, usersById) => {
 	const [a, b] = t['display_text_range'];
 	// some unicode madness, String.substr works too, but deprecated?
 	// String.slice and String.substring split unicode chars
-	let text = Array.from(t['full_text']).slice(a, b).join('');
+	const visibleText = unescapeHtmlEntities(
+		Array.from(t['full_text']).slice(a, b).join('')
+	);
+	const text = parseTextEntities(t);
 
 	const date = new Date(t.created_at);
 
+	// TODO: convert format
 	const media = t?.extended_entities?.media || t?.entities?.media;
 
-	// TODO: proper entitites parsing
-	t.entities.urls.forEach(e => {
-		text = text.replaceAll(
-			e.url,
-			`<a href="${esc(e.expanded_url)}">${esc(decodeURI(e.expanded_url))}</a>`
-		);
-	});
-	text = text.replaceAll('\n', '<br/>');
-
-	// TODO: quoted tweet rendering
-
 	const collapsed = (
-		text.match(/@threadreaderapp/i)
+		visibleText.match(/@threadreaderapp/i)
 		|| username == 'threadreaderapp'
-		|| text.match(/sendvidbot/i)
+		|| visibleText.match(/@readwise/i)
+		|| username == 'readwise'
+		|| visibleText.match(/@SaveToNotion/i)
+		|| username == 'SaveToNotion'
+		|| visibleText.match(/@sendvidbot/i)
 		|| username == 'sendvidbot'
+		|| visibleText.match(/@memdotai/i)
+		|| username == 'memdotai'
+		|| parseInt(localStorage[`ur-${t.user_id_str}`], 10) < -10
 	);
 
-	const obj =  {
+	const obj = {
 		// pad: [],
 		depth: t._depth,
 
@@ -222,21 +291,22 @@ const convertScrapedTo = (t, usersById) => {
 		formattedTime: date.toLocaleString("en-US"),
 		timeAgo: timeSince(date),
 
-		quoted_status_id_str: t.quoted_status_id_str,
+		quotedId: t.quoted_status_id_str,
 
 		collapsed,
 		text,
+		visibleRawText: visibleText,
 
 		media,
 	};
 
-	if (t._parts) {
+	if (t._parts) {  // thread tweets group
 		obj.parts = t._parts.map(t => convertScrapedTo(t, usersById));
 	} else {
 		obj.parts = [];
 	}
 
-	if (t._quoted) {
+	if (t._quoted) {  // quoted tweet
 		obj._quoted = convertScrapedTo(t._quoted, usersById);
 	}
 
@@ -300,8 +370,8 @@ onMount(fetchData);
 </script>
 
 {#if data.length}
-<div class="trx">
-	<div class="colorScroll">
+<div class="thread-page">
+	<div class="colors-scroll">
 		{#each colorScroll as c, i}
 			<div style="background: {c.color}; height: {c.height / totalScrollHeight * 100}%; width: 100%;"></div>
 		{/each}
@@ -313,11 +383,10 @@ onMount(fetchData);
 		{/each}
 	</div>
 
-<div class="thread-container">
+<div class="comments">
 
-<div class="comments" role="tree">
 {#each data as c, i}
-	<div class='comment-container'>
+	<div class='comment-with-pad'>
 		{#each {length: c.depth} as _, i}
 			<div class='pad' style="background: {c.pad[i].byBgColor};">
 				{#if c.pad[i].sameUser}
@@ -332,7 +401,7 @@ onMount(fetchData);
 		<div id="comment-{c.id}" class='comment' role="treeitem">
 			<div class="comment-header">
 				<Username data={c.userData} color={c.byColor} bgColor={c.byBgColor}/>
-				{#if c.isOP}<div class="meta-gray">OP</div>{/if}
+				{#if c.isOP}<div class="op">OP</div>{/if}
 				<span class="date meta-gray" title="{c.formattedTime}">{c.timeAgo}</span>
 
 				<button class="btn-text" on:click={(e) => collapse(e, i)} title="collapse">
@@ -370,7 +439,7 @@ onMount(fetchData);
 				</a>
 			</div>
 
-			<div class="comment-content" class:d-none="{c.collapsed}">
+			<div class="comment-content" class:d-none="{c.collapsed}" class:narrator-skip="{c.collapsed}">
 				{#each c.parts as p, pi (p.id)}
 					{#if pi > 0}
 						<div class="comment-header tweet-splitter narrator-skip">
@@ -388,20 +457,42 @@ onMount(fetchData);
 							</div>
 						</div>
 					{/if}
-					
+
 					{#if p._quoted}
-						<p id="line-{p.id}-quote" class="quote quote-single-line" title={p._quoted.text}>
-							{@html p._quoted.text}
-						</p>
+						<div class="quote narrator-skip">
+							<p
+								class="p-last-line quote-single-line"
+								title={p._quoted.visibleRawText}
+							>
+								{p._quoted.visibleRawText}
+							</p>
+						</div>
 					{/if}
 
-					<p id="line-{p.id}">
-						{@html p.text}
-					</p>
+					{#each p.text as paragraph, paragraph_index}
+						<p
+							class:quote="{paragraph.type === 'quote'}"
+							class:p-last-line="{paragraph_index == (p.text.length-1)}"
+						>
+							{#each paragraph as part}
+								{#if part._type === 'text'}
+									{#each part.text as line, line_i}
+										{line}{#if line_i < (part.text.length-1)}<br/>{/if}
+									{/each}
+								{:else if part._type === 'user_mention'}
+									<a href={`https://twitter.com/${part.username}`}>{part.text}</a>
+								{:else if part._type === 'url'}
+									<a href={part.url}>{part.url}</a>
+								{:else if part._type === 'hashtag'}
+									<a href={`https://twitter.com/hashtag/${part.hashtag}`}>{part.text}</a>
+								{/if}
+							{/each}
+						</p>
+					{/each}
 
-					{#if p.quoted_status_id_str}
+					{#if p.quotedId}
 						<div><b style="color: red;">TODO: QUOTED TWEET</b>
-							<a href={`https://twitter.com/qwe/status/${p.quoted_status_id_str}`}>click</a></div>
+							<a href={`https://twitter.com/qwe/status/${p.quotedId}`}>click</a></div>
 					{/if}
 
 					{#if p.media}
@@ -410,7 +501,7 @@ onMount(fetchData);
 							{#if m.type === "photo"}
 								<a href={m['media_url_https']}>
 									<img
-										class="attch"
+										class="attach"
 										alt=''
 										src={m['media_url_https']}
 										width={m['original_info']['width']}
@@ -420,28 +511,27 @@ onMount(fetchData);
 							{:else if m.type === "video"}
 								<!-- svelte-ignore a11y-media-has-caption -->
 								<video
-									class="attch"
+									class="attach"
 									controls
 									preload="metadata"
 									width={m['original_info']['width']}
 									height={m['original_info']['height']}
 								>
-									{#each m.video_info.variants as v}
+									{#each m.video_info.variants.reverse() as v}
 										<source src={v.url} type={v.content_type}>
 									{/each}
 								</video>
 							{:else if m.type === "animated_gif"}
 								<!-- svelte-ignore a11y-media-has-caption -->
 								<video
-									class="attch-gif"
+									class="attach-gif"
 									controls
 									loop
-									autoplay
 									preload="metadata"
 									width={m['original_info']['width']}
 									height={m['original_info']['height']}
 								>
-									{#each m.video_info.variants as v}
+									{#each m.video_info.variants.reverse() as v}
 										<source src={v.url} type={v.content_type}>
 									{/each}
 								</video>
@@ -456,56 +546,40 @@ onMount(fetchData);
 		</div>
 	</div>
 {/each}
+</div>
 <div style="height: 50vh;"></div>
-</div>
-</div>
 </div>
 {/if}
 
 <style>
-
-.attch {
-	max-width: 100%;
-	width: 100%;
-	object-fit: contain;
-	max-height: 400px;
-}
-
-.attch-gif {
-	max-width: 100%;
-	max-height: 150px;
-}
-
 :global(html, body) {
 	background-color: var(--bg-color);
 	color: var(--text-color);
 }
 
+.thread-page {
+	display: flex;
+	flex-direction: column;
+}
+
 p {
-	margin: 0 0 1px 0;
+	margin: 0 0 1em 0;
 
 	line-height: 1.2;
 	font-size: 1em;
 }
 
-:global(p:not(.quote)) {
+p.p-last-line {
+	margin: 0 0 1px 0;
+}
+
+p:not(.quote) {
 	background: repeating-linear-gradient(
 		#0000, 
 		#0000 1.2em, 
 		#0000000f 1.2em, 
 		#0000000f 2.4em
 	);
-}
-
-:global(.comment-content pre) {
-	white-space: pre-wrap;
-	margin: 0;
-	line-height: 1.2rem;
-}
-
-.trx {
-	display: flex;
-	flex-direction: column;
 }
 
 .btn-text {
@@ -523,21 +597,38 @@ p {
 	height: 10px;
 	justify-content: center;
 	margin: 5px 0;
+	contain: content;
 }
-.thread-container {
+.comments {
+	display: flex;
+	flex-direction: column;
+
 	z-index: 200;
+
+	margin-left: 0.3em;
+	margin-right: 0.3em;
 }
 
 @media only screen and (min-width: 900px) {
-	.thread-container {
+	.comments {
 		min-width: 800px;
 		margin-left: auto;
 		margin-right: auto;
 		width: max-content;
 	}
 
-	.comments .comment-container:first-child > .comment {
+	.comments .comment-with-pad:first-child > .comment {
 		width: 100%;
+	}
+
+	:global(html) {
+		scrollbar-width: thin;
+		scrollbar-color: #000 transparent !important;
+	}
+}
+@media only screen and (max-width: 899px) {
+	.colors-scroll {
+		display: none !important;
 	}
 }
 
@@ -558,11 +649,24 @@ p {
 	position: relative;
 }
 
+.comment-with-pad {
+	padding: 0 6px;
+}
+.comment-with-pad:first-child {
+	padding-top: 6px;
+}
+.comment-with-pad:last-child {
+	padding-bottom: 6px;
+}
+
 .comment {
-	border-radius: 5px;
+	display: flex;
+	flex-direction: column;
+
+	border-radius: 4px;
 	margin: 2px 0;
 
-    width: 100%;
+	width: 100%;
 	max-width: min(62ch, 100vw);
 	background-color: var(--comment-bg-color);
 	overflow-wrap: anywhere;
@@ -572,8 +676,9 @@ p {
 	/* overflow: hidden; */
 }
 
-.comment-container {
+.comment-with-pad {
 	display: flex;
+	contain: content;
 }
 
 .comment-header * {
@@ -582,11 +687,12 @@ p {
 }
 
 .comment-header {
-	margin: 0 5px 5px 0;
+	margin: 0 5px 3px 0;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 10px;
+	gap: 14px;
+	font-size: 0.9em;
 }
 
 .comment-header > * {
@@ -602,14 +708,21 @@ p {
 }
 
 .meta-gray {
-	font-size: 0.8em;
+	font-size: 0.9em;
 	color: var(--meta-color);
 	font-weight: 300;
 }
 
+.op {
+	font-size: 0.9em;
+	font-weight: bolder;
+}
+
 .comment-content {
+	display: flex;
+	flex-direction: column;
 	margin: 0 5px 5px 5px;
-	overflow: auto;
+	overflow: auto hidden ;
 }
 
 hr {
@@ -624,18 +737,24 @@ hr {
 	opacity: 0.6;
 }
 
-:global(.comment-content a) {
+.comment-content pre {
+	white-space: pre-wrap;
+	margin: 0;
+	line-height: 1.2rem;
+}
+
+.comment-content a {
 	overflow-wrap: break-word;
 	word-wrap: break-word;
 	word-break: break-all;
 	word-break: break-word;
 }
 
-:global(.comment-content > p:first-child) {
+.comment-content > p:first-child {
 	margin-top: 0;
 }
 
-:global(.comment-content > p:last-child) {
+.comment-content > p:last-child {
 	margin-bottom: 0;
 }
 
@@ -652,7 +771,18 @@ hr {
 	overflow: hidden;
 }
 
-.colorScroll {
+.attach {
+	max-width: 100%;
+	width: 100%;
+	object-fit: contain;
+	max-height: 400px;
+}
+
+.attach-gif {
+	max-width: 100%;
+	max-height: 150px;
+}
+.colors-scroll {
 	z-index: 100;
 
 	position: fixed;
@@ -664,11 +794,6 @@ hr {
 
 	display: flex;
 	flex-direction: column;
-}
-
-@media only screen and (max-width: 899px) {
-	.colorScroll {
-		display: none;
-	}
+	contain: strict;
 }
 </style>

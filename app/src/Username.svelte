@@ -1,5 +1,6 @@
 <script>
 import { timeSince, trySetLSValue } from "./utils";
+import Portal from './Portal.svelte';
 
 export let data;
 export let color;
@@ -7,7 +8,10 @@ export let bgColor;
 
 const username = data.username;
 
+let ref = null;
+
 let popup = false;
+let popupStyle = {};
 
 const userKey = `ur-${data.id}`;
 const userNoteKey = `ur-n-${data.id}`;
@@ -47,9 +51,9 @@ function updateRating() {
 	if (userRating === 0) {
 		ratingColor = ''
 	} else if (userRating < 0) {
-		ratingColor = 'rgb(255, 32, 32)';
+		ratingColor = 'rgb(238, 0, 0)';
 	} else {
-		ratingColor = '#0f0';
+		ratingColor = 'rgb(0, 206, 90)';
 	}
 }
 updateRating();
@@ -82,11 +86,22 @@ const downvote = () => {
 	event.key = userKey;
 	window.dispatchEvent(event);
 }
+
+const togglePopup = () => {
+	if (!popup) {
+		const pos = ref.getBoundingClientRect();
+		const posTop = pos.top + pos.height + window.scrollY;
+		const posLeft = pos.left + window.scrollX;
+
+		popupStyle = `position: absolute; top: ${posTop}px; left: ${posLeft}px;`
+	}
+	popup = !popup;
+};
 </script>
 
-<div class="username-container">
+<div class="username-container" bind:this={ref}>
 	<button
-		on:click={() => {popup = !popup;}}
+		on:click={togglePopup}
 		class="username"
 		style="color: {color}; background: {bgColor};"
 	>
@@ -102,37 +117,39 @@ const downvote = () => {
 	</div>
 
 	{#if popup}
-	<div class="userPopup">
-		<input
-			class="note"
-			placeholder="Add a note..."
-			bind:value={note}
-			on:change={onNoteChange}
-			on:keydown={onNoteKeydown}
-		/>
+	<Portal>
+		<div class="userPopup" style={popupStyle}>
+			<input
+				class="note"
+				placeholder="Add a note..."
+				bind:value={note}
+				on:change={onNoteChange}
+				on:keydown={onNoteKeydown}
+			/>
 
-		<div class="meta">
-			<div>
-				<a href="https://twitter.com/{username}">
-					{data.name}
-				</a>
-				{" | "}
-				{#if data.location}
-					location: {data.location}
+			<div class="meta">
+				<div>
+					<a href="https://twitter.com/{username}">
+						{data.name}
+					</a>
 					{" | "}
-				{/if}
-				following: {data.followingCount}
-				{" | "}
-				followers: {data.followersCount}
-				{" | "}
-				<span title="{data.createdAt.toLocaleString("en-US")}">
-					joined: {timeSince(data.createdAt)}
-				</span>
+					{#if data.location}
+						location: {data.location}
+						{" | "}
+					{/if}
+					following: {data.followingCount}
+					{" | "}
+					followers: {data.followersCount}
+					{" | "}
+					<span title="{data.createdAt.toLocaleString("en-US")}">
+						joined: {timeSince(data.createdAt)}
+					</span>
+				</div>
 			</div>
-		</div>
 
-		<div class="userAbout">{data.description}</div>
-	</div>
+			<div class="userAbout">{data.description}</div>
+		</div>
+	</Portal>
 	{/if}
 </div>
 
@@ -147,7 +164,7 @@ const downvote = () => {
 
 .meta {
 	font-size: 0.9em;
-    font-family: monospace;
+	font-family: monospace;
 }
 
 .username {

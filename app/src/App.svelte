@@ -38,8 +38,6 @@
 	}, false);
 </script>
 
-<main>
-
 {#if !darkTheme}
 <style>
 	:root {
@@ -47,6 +45,10 @@
 		--text-color: #000;
 		--comment-bg-color: #fff;
 		--meta-color: rgb(94, 126, 142);
+	}
+
+	html {
+		scrollbar-color: #000 transparent;
 	}
 </style>
 {:else}
@@ -57,6 +59,10 @@
 		--comment-bg-color: rgb(55, 45, 40);
 		--meta-color: rgb(179, 172, 152);
 	}
+
+	html {
+		scrollbar-color: #fff transparent;
+	}
 </style>
 {/if}
 
@@ -64,7 +70,7 @@
 	<div class="home"><a href="#" class="no-vs">Twitter Reader</a></div>
 
 	<div class='ml-auto'></div>
-	<div>
+	<div class="settings">
 		<input
 		class="c-pointer"
 			id="dark-theme-checkbox"
@@ -75,7 +81,7 @@
 	</div>
 </div>
 
-<div class="tr">
+<div class="page">
 {#if page === "thread"}
 	{#key props.threadId}
 		<Thread {...props}/>
@@ -83,16 +89,20 @@
 {/if}
 </div>
 
-</main>
-
 <style>
 .home {
 	font-size: 1.4em;
 	font-family: monospace;
 }
 
-.tr {
+.page {
 	width: 100%;
 	overflow-x: hidden;
+}
+@media only screen and (min-width: 900px) {
+	.settings {
+		position: fixed;
+		right: 16px;
+	}
 }
 </style>
