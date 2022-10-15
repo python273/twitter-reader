@@ -1,6 +1,9 @@
 # twitter-reader
 
-WIP
+Twitter thread reader that shows tweets as comments tree **(WIP)**
+
+A random thread to check out the reader:
+https://tw.cns.wtf/#1559672719414681601
 
 ```
 $ python3 load_thread.py 12345

@@ -211,6 +211,7 @@ function parseTextEntities(t) {
 				e.username = entity.screen_name;
 			} else if (e._type === 'url') {
 				e.url = entity.expanded_url;
+				e.urldecoded = decodeURI(entity.expanded_url);
 			} else if (e._type === 'hashtag') {
 				e.hashtag = entity.text;
 			}
@@ -258,14 +259,19 @@ const convertScrapedTo = (t, usersById) => {
 	const collapsed = (
 		visibleText.match(/@threadreaderapp/i)
 		|| username == 'threadreaderapp'
+		|| username == 'UnrollHelper'
 		|| visibleText.match(/@readwise/i)
 		|| username == 'readwise'
+		|| visibleText.match(/@NotionAddon/i)
+		|| username == 'NotionAddon'
 		|| visibleText.match(/@SaveToNotion/i)
 		|| username == 'SaveToNotion'
 		|| visibleText.match(/@sendvidbot/i)
 		|| username == 'sendvidbot'
 		|| visibleText.match(/@memdotai/i)
 		|| username == 'memdotai'
+		|| visibleText.match(/@pikaso_me/i)
+		|| username == 'pikaso_me'
 		|| parseInt(localStorage[`ur-${t.user_id_str}`], 10) < -10
 	);
 
@@ -336,6 +342,7 @@ const fetchData = async () => {
 	usersById = tempUsersById;
 
 	const tempTree = thread['tree'].map(t => convertScrapedTo(t, usersById));
+	window.document.title = `${tempTree[0].visibleRawText} | Twitter Reader`;
 
 	let tweetStack = [];
 	let prevDepth = 0;
@@ -482,7 +489,7 @@ onMount(fetchData);
 								{:else if part._type === 'user_mention'}
 									<a href={`https://twitter.com/${part.username}`}>{part.text}</a>
 								{:else if part._type === 'url'}
-									<a href={part.url}>{part.url}</a>
+									<a href={part.url}>{part.urldecoded}</a>
 								{:else if part._type === 'hashtag'}
 									<a href={`https://twitter.com/hashtag/${part.hashtag}`}>{part.text}</a>
 								{/if}
@@ -506,6 +513,7 @@ onMount(fetchData);
 										src={m['media_url_https']}
 										width={m['original_info']['width']}
 										height={m['original_info']['height']}
+										loading="lazy"
 									/>
 								</a>
 							{:else if m.type === "video"}
@@ -573,14 +581,14 @@ p.p-last-line {
 	margin: 0 0 1px 0;
 }
 
-p:not(.quote) {
+/* p:not(.quote) {
 	background: repeating-linear-gradient(
 		#0000, 
 		#0000 1.2em, 
 		#0000000f 1.2em, 
 		#0000000f 2.4em
 	);
-}
+} */
 
 .btn-text {
 	display: inline-block;
@@ -664,7 +672,7 @@ p:not(.quote) {
 	flex-direction: column;
 
 	border-radius: 4px;
-	margin: 2px 0;
+	margin: 0 0 4px 0;
 
 	width: 100%;
 	max-width: min(62ch, 100vw);
@@ -722,7 +730,7 @@ p:not(.quote) {
 	display: flex;
 	flex-direction: column;
 	margin: 0 5px 5px 5px;
-	overflow: auto hidden ;
+	overflow: auto hidden;
 }
 
 hr {

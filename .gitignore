@@ -1,4 +1,7 @@
 app/public/tree_*
 **/node_modules
 thread_*.json
-.DS_Store
+**/.DS_Store
+**/__pycache__
+
+saved_tokens.txt
