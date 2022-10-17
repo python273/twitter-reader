@@ -1,11 +1,11 @@
 import collections
-from concurrent.futures import thread
 import json
 import time
 import traceback
 import httpx
 import sys
 import asyncio
+import inspect
 try:
     import uvloop
     uvloop_installed = True
@@ -15,7 +15,22 @@ except ImportError:
 
 from aio_pool import AioPool
 
-USERAGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:100.0) Gecko/20100101 Firefox/100.0"
+USERAGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:100.0) "
+    "Gecko/20100101 Firefox/100.0"
+)
+
+
+async def sure(fn, max_sleep=32):
+    t = 1
+    while True:
+        try:
+            return await fn()
+        except Exception:
+            print(f'sure failed', inspect.getsource(fn).strip())
+            traceback.print_exc()
+            await asyncio.sleep(t)
+            t = min(max_sleep, t * 2)
 
 
 def find_dicts_deep(data, fn_match):
@@ -53,7 +68,7 @@ def find_all_users(data):
     )
 
 
-AUTH_BEARER = 'AnTpCjWWGA33AF4uJvTLhjHc61qUI18FL8kftt7vZ1D3%sTup4zZnx8I6E5HuOCRjeUzIwNnAAAAAAgLIRNAAAAAAAAAAAAAAAAAAAAA reraeB'[::-1]
+AUTH_BEARER = r'AnTpCjWWGA33AF4uJvTLhjHc61qUI18FL8kftt7vZ1D3%sTup4zZnx8I6E5HuOCRjeUzIwNnAAAAAAgLIRNAAAAAAAAAAAAAAAAAAAAA reraeB'[::-1]
 
 
 async def get_guest_id(session):
@@ -178,7 +193,8 @@ async def load_tree(pool: AioPool, thread_id):
             total_count += 1
 
             print(
-                f'Fetched {tweet_id} {bool(cursor)} ({pool.responses_count} / {total_count})'
+                f'Fetched {tweet_id!r} {"*" if cursor else ""} '
+                f'({pool.responses_count} / {total_count})'
             )
 
             if 'errors' in response:
@@ -248,41 +264,37 @@ async def load_tree(pool: AioPool, thread_id):
     }
 
 
-async def worker_fn(worker_id, token, tweet_id, cursor):
-    async with httpx.AsyncClient(http2=True) as session:
-        session.headers['User-Agent'] = USERAGENT
-        session.headers['x-guest-token'] = token
+async def worker_fn(worker_id, session, tweet_id, cursor):
+    while True:
+        print(f'[{worker_id}] fetching {tweet_id!r} {"*" if cursor else ""}')
+
+        failed_requests = 0  # non-transport errors
+        while failed_requests < 5:
+            try:
+                r = await load_tweet(session, tweet_id, cursor)
+                print(f'[{worker_id}] done')
+                return r
+            except httpx.RequestError as e:
+                print(f'could not load tweet (network error). Error: {e}')
+            except asyncio.exceptions.CancelledError:
+                raise
+            except:
+                failed_requests += 1
+                print('could not load tweet. Traceback:')
+                traceback.print_exc()
+            await asyncio.sleep(3)
 
         while True:
-            print(f'[{worker_id}] fetching {tweet_id} {bool(cursor)}')
-
-            failed_requests = 0  # non-transport errors
-            while failed_requests < 5:
-                try:
-                    r = await load_tweet(session, tweet_id, cursor)
-                    print(f'[{worker_id}] done')
-                    return r
-                except httpx.RequestError:
-                    print('could not load tweet (network error). Traceback:')
-                    traceback.print_exc()
-                    await asyncio.sleep(3)
-                    continue
-                except:
-                    failed_requests += 1
-                    print('could not load tweet. Traceback:')
-                    traceback.print_exc()
-                    await asyncio.sleep(3)
-                    continue
-            
-            while True:
-                await asyncio.sleep(10)
-                try:
-                    session.headers.pop('x-guest-token')
-                    session.headers['x-guest-token'] = await get_guest_id(session)
-                    break
-                except:
-                    print('could not refetch token. Traceback:')
-                    traceback.print_exc()
+            await asyncio.sleep(10)
+            try:
+                session.headers.pop('x-guest-token')
+                session.headers['x-guest-token'] = await get_guest_id(session)
+                break
+            except asyncio.exceptions.CancelledError:
+                raise
+            except:
+                print('could not refetch token. Traceback:')
+                traceback.print_exc()
 
 
 async def main():
@@ -296,14 +308,17 @@ async def main():
     except FileNotFoundError:
         tokens = []
 
-    tokens = await asyncio.gather(*[check_guest_id(t) for t in tokens])
+    tokens = await asyncio.gather(*[
+        sure(lambda: check_guest_id(t), max_sleep=2)
+        for t in tokens
+    ])
     tokens = [i for i in tokens if i]
 
     need_tokens = num_workers - len(tokens)
     if need_tokens > 0:
         print(f'Getting {need_tokens} tokens')
         new_tokens = await asyncio.gather(*[
-            get_guest_id(httpx.AsyncClient(http2=True))
+            sure(lambda: get_guest_id(httpx.AsyncClient(http2=True)))
             for _ in range(need_tokens)
         ])
         tokens.extend(new_tokens)
@@ -312,7 +327,14 @@ async def main():
         for i in tokens:
             f.write(f'{i}\n')
 
-    worker_args = [(worker_id, t) for worker_id, t in enumerate(tokens)]
+    worker_args = []
+    for worker_id, t in enumerate(tokens):
+        session = httpx.AsyncClient(http2=True)
+        session.headers['User-Agent'] = USERAGENT
+        session.headers['x-guest-token'] = t
+
+        worker_args.append((worker_id, session))
+
     pool = AioPool(num_workers, worker_fn, worker_args)
 
     st = time.monotonic()
