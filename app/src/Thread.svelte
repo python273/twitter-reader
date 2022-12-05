@@ -498,7 +498,7 @@ onMount(fetchData);
 					{/each}
 
 					{#if p.quotedId}
-						<div><b style="color: red;">TODO: QUOTED TWEET</b>
+						<div class="narrator-skip"><b style="color: red;">TODO: QUOTED TWEET</b>
 							<a href={`https://twitter.com/qwe/status/${p.quotedId}`}>click</a></div>
 					{/if}
 
@@ -784,6 +784,7 @@ hr {
 	width: 100%;
 	object-fit: contain;
 	max-height: 400px;
+	height: auto;
 }
 
 .attach-gif {
