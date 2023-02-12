@@ -15,10 +15,7 @@ except ImportError:
 
 from aio_pool import AioPool
 
-USERAGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:100.0) "
-    "Gecko/20100101 Firefox/100.0"
-)
+USERAGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0'
 
 
 async def sure(fn, max_sleep=32):
@@ -57,7 +54,7 @@ def find_all_cursors(data):
 def find_all_tweets(data):
     return find_dicts_deep(
         data,
-        lambda d: ('id_str' in d) and ('full_text' in d) and ('retweet_count' in d)
+        lambda d: d.get('__typename') == 'Tweet'
     )
 
 
@@ -72,6 +69,7 @@ AUTH_BEARER = r'AnTpCjWWGA33AF4uJvTLhjHc61qUI18FL8kftt7vZ1D3%sTup4zZnx8I6E5HuOCR
 
 
 async def get_guest_id(session):
+    # TODO: guest id moved to html response "gt=
     headers = {
         'User-Agent': USERAGENT,
         'Accept': '*/*',
@@ -108,22 +106,26 @@ async def load_tweet(session, tweet_id, cursor):
         'Accept-Language': 'en-US,en;q=0.5',
         'content-type': 'application/json',
         'authorization': AUTH_BEARER,
+        'Referer': 'https://twitter.com/',
+        'x-twitter-client-language': 'en',
+        'x-twitter-active-user': 'yes',
+        'Origin': 'https://twitter.com',
     }
 
     variables = {
         'focalTweetId': tweet_id,
+        'with_rux_injections': False,
         'includePromotedContent': True,
-        'withBirdwatchNotes': False,
         'withCommunity': True,
-        'withDownvotePerspective': False,
         'withQuickPromoteEligibilityTweetFields': True,
+        'withBirdwatchNotes': False,
+        'withSuperFollowsUserFields': True,
+        'withDownvotePerspective': False,
         'withReactionsMetadata': False,
         'withReactionsPerspective': False,
         'withSuperFollowsTweetFields': True,
-        'withSuperFollowsUserFields': True,
-        'withV2Timeline': True,
         'withVoice': True,
-        'with_rux_injections': False
+        'withV2Timeline': True,
     }
 
     if cursor:
@@ -133,21 +135,40 @@ async def load_tweet(session, tweet_id, cursor):
         })
 
     params = {
-        'variables': json.dumps(variables),
+        'variables': json.dumps(variables, separators=(',', ':')),
         'features': json.dumps({
-            'dont_mention_me_view_api_enabled': True,
+            'responsive_web_twitter_blue_verified_badge_is_enabled': True,
+            'responsive_web_graphql_exclude_directive_enabled': False,
+            'verified_phone_label_enabled': False,
+            'responsive_web_graphql_timeline_navigation_enabled': True,
+            'responsive_web_graphql_skip_user_profile_image_extensions_enabled': False,
+            'tweetypie_unmention_optimization_enabled': True,
+            'vibe_api_enabled': True,
+            'responsive_web_edit_tweet_api_enabled': True,
+            'graphql_is_translatable_rweb_tweet_is_translatable_enabled': True,
+            'view_counts_everywhere_api_enabled': True,
+            'longform_notetweets_consumption_enabled': True,
+            'freedom_of_speech_not_reach_appeal_label_enabled': False,
+            'standardized_nudges_misinfo': True,
+            'tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled': False,
             'interactive_text_enabled': True,
-            'responsive_web_edit_tweet_api_enabled': False,
-            'responsive_web_like_by_author_enabled': False,
-            'responsive_web_uc_gql_enabled': False
-        }),
+            'responsive_web_text_conversations_enabled': False,
+            'responsive_web_enhance_cards_enabled': False,
+        }, separators=(',', ':')),
     }
 
-    return (await session.get(
-        'https://twitter.com/i/api/graphql/u3N3Hp5UJq5QMCR2yDwzaw/TweetDetail',
+    r = await session.get(
+        'https://api.twitter.com/graphql/VaihYjIIeVg4gfvwMgQsUA/TweetDetail',
         params=params,
-        headers=headers
-    )).json()
+        headers=headers,
+        timeout=20.0,
+    )
+
+    try:
+        return r.json()
+    except Exception:
+        print('json decode error', r.text)
+        raise
 
 
 def get_tweet_ids_belonging_to_thread(tweets, thread_id):
@@ -159,12 +180,12 @@ def get_tweet_ids_belonging_to_thread(tweets, thread_id):
         added = 0
         for t in tweets:
             should_add = (
-                t['id_str'] not in thread
-                and t.get('in_reply_to_status_id_str', -1) in thread
+                t['rest_id'] not in thread
+                and t['legacy'].get('in_reply_to_status_id_str', -1) in thread
             )
             if not should_add:
                 continue
-            thread.add(t['id_str'])
+            thread.add(t['rest_id'])
             added += 1
 
         if added == 0:
@@ -200,24 +221,24 @@ async def load_tree(pool: AioPool, thread_id):
             if 'errors' in response:
                 print('Errors')
                 print(response)
-                continue
+                # continue
 
             tweets = find_all_tweets(response)
             users = find_all_users(response)
             cursors = find_all_cursors(response)
 
             for t in tweets:
-                expected_replies_count[t['id_str']] = max(
-                    expected_replies_count[t['id_str']],
-                    t['reply_count']
-                )
+                tl = t['legacy']
+                tid = t['rest_id']
+                expected_replies_count[tid] = max(
+                    expected_replies_count[tid], tl['reply_count'])
 
-                if t['id_str'] in loaded_tweets:
+                if tid in loaded_tweets:
                     continue
 
-                loaded_tweets[t['id_str']] = t
-                if t.get('in_reply_to_status_id_str'):
-                    got_replies_count[t['in_reply_to_status_id_str']] += 1
+                loaded_tweets[tid] = t
+                if tl.get('in_reply_to_status_id_str'):
+                    got_replies_count[tl['in_reply_to_status_id_str']] += 1
 
             for u in users:
                 loaded_users[u['rest_id']] = u
@@ -278,7 +299,7 @@ async def worker_fn(worker_id, session, tweet_id, cursor):
                 print(f'could not load tweet (network error). Error: {e}')
             except asyncio.exceptions.CancelledError:
                 raise
-            except:
+            except Exception:
                 failed_requests += 1
                 print('could not load tweet. Traceback:')
                 traceback.print_exc()
@@ -292,7 +313,7 @@ async def worker_fn(worker_id, session, tweet_id, cursor):
                 break
             except asyncio.exceptions.CancelledError:
                 raise
-            except:
+            except Exception:
                 print('could not refetch token. Traceback:')
                 traceback.print_exc()
 

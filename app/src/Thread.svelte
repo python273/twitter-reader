@@ -158,18 +158,30 @@ function unescapeHtmlEntities(str) {
 	return str.replace(reHtmlEntities, (m, c) => htmlEntities[c]);
 }
 
-function parseTextEntities(t) {
+function parseTextEntities(origT) {
 	// Parse tweet entities and split text to paragraphs
+	const t = origT.legacy;
 
-	let text = Array.from(t['full_text']);
+	let text;
+	let entities;
+	let [displayA, displayB] = [null, null];
 
-	const [displayA, displayB] = t['display_text_range'];
+	const noteTweet = origT?.note_tweet?.note_tweet_results?.result;
+	if (noteTweet) {
+		text = Array.from(noteTweet['text']);
+		entities = noteTweet['entity_set'];
+		[displayA, displayB] = [0, text.length];
+	} else {
+		text = Array.from(t['full_text']);
+		entities = t.entities;
+		[displayA, displayB] = t['display_text_range'];
+	}
 
 	const allEntities = [
-		...t.entities.user_mentions.map(i => ({...i, _type: 'user_mention'})),
-		...t.entities.urls.map(i => ({...i, _type: 'url'})),
-		...t.entities.hashtags.map(i => ({...i, _type: 'hashtag'})),
-		// ...t.entities.symbols.map(i => ({...i, _type: 'symbol'})),
+		...entities.user_mentions.map(i => ({...i, _type: 'user_mention'})),
+		...entities.urls.map(i => ({...i, _type: 'url'})),
+		...entities.hashtags.map(i => ({...i, _type: 'hashtag'})),
+		// ...entities.symbols.map(i => ({...i, _type: 'symbol'})),
 	]
 
 	// dummy entity to parse text after the last real entity
@@ -238,7 +250,8 @@ function parseTextEntities(t) {
 }
 
 
-const convertScrapedTo = (t, usersById) => {
+const convertScrapedTo = (origT, usersById) => {
+	const t = origT.legacy;
 	const u = usersById[t.user_id_str];
 	const username = u.username;
 	const [byBgColor, byColor] = getUsernameColor(username);
@@ -249,7 +262,7 @@ const convertScrapedTo = (t, usersById) => {
 	const visibleText = unescapeHtmlEntities(
 		Array.from(t['full_text']).slice(a, b).join('')
 	);
-	const text = parseTextEntities(t);
+	const text = parseTextEntities(origT);
 
 	const date = new Date(t.created_at);
 
@@ -277,7 +290,7 @@ const convertScrapedTo = (t, usersById) => {
 
 	const obj = {
 		// pad: [],
-		depth: t._depth,
+		depth: origT._depth,
 
 		_t: t,
 		id: t.id_str,
@@ -288,7 +301,7 @@ const convertScrapedTo = (t, usersById) => {
 		byColor,
 		byBgColor,
 
-		isOP: t.user_id_str === opTweet.user_id_str,
+		isOP: t.user_id_str === opTweet.legacy.user_id_str,
 
 		favoriteCount: t.favorite_count,
 		quoteCount: t.quote_count,
@@ -306,14 +319,14 @@ const convertScrapedTo = (t, usersById) => {
 		media,
 	};
 
-	if (t._parts) {  // thread tweets group
-		obj.parts = t._parts.map(t => convertScrapedTo(t, usersById));
+	if (origT._parts) {  // thread tweets group
+		obj.parts = origT._parts.map(i => convertScrapedTo(i, usersById));
 	} else {
 		obj.parts = [];
 	}
 
-	if (t._quoted) {  // quoted tweet
-		obj._quoted = convertScrapedTo(t._quoted, usersById);
+	if (origT._quoted) {  // quoted tweet
+		obj._quoted = convertScrapedTo(origT._quoted, usersById);
 	}
 
 	return obj;

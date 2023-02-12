@@ -3,57 +3,60 @@ import json
 from pprint import pprint
 
 
-def partition_replies_deep(tweets, curr, _same=None, _others=None):
-    is_first_level = _same is None
+def partition_replies_deep(tweets, curr, _thread=None, _replies=None):
+    is_first_level = _thread is None
 
-    if _same is None:
-        _same = []
-    if _others is None:
-        _others = []
+    if _thread is None:
+        _thread = []
+    if _replies is None:
+        _replies = []
 
-    curr_id = curr['id_str']
+    curr_id = curr['rest_id']
 
     replies = [
         t for t in tweets
-        if t.get('in_reply_to_status_id_str') == curr_id
+        if t['legacy'].get('in_reply_to_status_id_str') == curr_id
     ]
 
     replies_same_author = []
 
     for r in replies:
-        if r['user_id_str'] == curr['user_id_str']:
+        if r['legacy']['user_id_str'] == curr['legacy']['user_id_str']:
             replies_same_author.append(r)
         else:
             if is_first_level:
-                _others.append(r)
+                _replies.append(r)
             else:
-                _others.append({**r, '_quoted': curr})
+                _replies.append({**r, '_quoted': curr})
 
     if replies_same_author:
         q = None
 
-        self_thread = curr.get('self_thread', {}).get('id_str')
+        self_thread = curr['legacy'].get('self_thread', {}).get('id_str')
         if self_thread:
             for i in replies_same_author:
-                if self_thread == i.get('self_thread', {}).get('id_str'):
+                if self_thread == i['legacy'].get('self_thread', {}).get('id_str'):
                     q = i
                     break
 
         if not q:
             q = replies_same_author[0]
 
-        _same.append(q)
-        _others.extend(i for i in replies_same_author if i['id_str'] != q['id_str'])
+        _thread.append(q)
+        for i in replies_same_author:
+            if i['rest_id'] == q['rest_id']:
+                continue  # skip thread
+            
+            if not any(1 for t in _replies if t['rest_id'] == i['rest_id']):
+                _replies.append(i)
 
-    # _same.extend(replies_same_author)
-    
     for i in replies_same_author:
-        partition_replies_deep(tweets, i, _same, _others)
+        partition_replies_deep(tweets, i, _thread, _replies)
 
-    return _same, _others
+    return _thread, _replies
 
 
-def process_replies(tweets, curr, depth=0, tree=None, author_id=None):
+def process_replies(tweets, curr, depth=0, tree=None):
     if tree is None:
         tree = [] # flat tree (each item has depth value)
 
@@ -64,7 +67,7 @@ def process_replies(tweets, curr, depth=0, tree=None, author_id=None):
     parts.extend(replies_same_author)
 
     for r in replies_others:
-        process_replies(tweets, r, depth + 1, tree, author_id)
+        process_replies(tweets, r, depth + 1, tree)
 
     return tree
 
@@ -78,10 +81,10 @@ def main():
         users = thread['users']
     
     users_by_id = {u['rest_id']: u for u in users}
-    main_tweet = [i for i in tweets if i['id_str'] == thread_id][0]
-    tweets.sort(key=lambda t: t['id_str'])
+    main_tweet = [i for i in tweets if i['rest_id'] == thread_id][0]
+    tweets.sort(key=lambda t: (-t['legacy']['favorite_count'], t['rest_id']))
 
-    tree = process_replies(tweets, main_tweet, author_id=main_tweet['user_id_str'])
+    tree = process_replies(tweets, main_tweet)
 
     with open(f'tree_{thread_id}.json', 'w') as f:
         json.dump(
