@@ -756,6 +756,7 @@ hr {
 	margin: 0;
 	font-size: 0.75em;
 	opacity: 0.6;
+	user-select: none;
 }
 
 .comment-content pre {
