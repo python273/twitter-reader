@@ -65,7 +65,7 @@ def find_all_users(data):
     )
 
 
-AUTH_BEARER = r'AnTpCjWWGA33AF4uJvTLhjHc61qUI18FL8kftt7vZ1D3%sTup4zZnx8I6E5HuOCRjeUzIwNnAAAAAAgLIRNAAAAAAAAAAAAAAAAAAAAA reraeB'[::-1]
+AUTH_BEARER = 'FCQLqLq1Nz0KMPgFONqHaJMgdVJqX4NAbXacUxwCmjMNIMlAkcD3%wTpYYxQvVHmbHczFr3hzl67pTHVAAAAAEgDOQFAAAAAAAAAAAAAAAAAAAAA reraeB'[::-1]
 
 
 async def get_guest_id(session):
@@ -167,7 +167,7 @@ async def load_tweet(session, tweet_id, cursor):
     try:
         return r.json()
     except Exception:
-        print('json decode error', r.text)
+        print('json decode error', r.status_code, r.content)
         raise
 
 
@@ -220,7 +220,7 @@ async def load_tree(pool: AioPool, thread_id):
 
             if 'errors' in response:
                 print('Errors')
-                print(response)
+                print(response.get('errors'))
                 # continue
 
             tweets = find_all_tweets(response)
@@ -241,6 +241,9 @@ async def load_tree(pool: AioPool, thread_id):
                     got_replies_count[tl['in_reply_to_status_id_str']] += 1
 
             for u in users:
+                if 'rest_id' not in u:
+                    print(u)
+                    continue
                 loaded_users[u['rest_id']] = u
 
             for c in cursors:
