@@ -46,7 +46,7 @@ function onNoteKeydown(event) {
 	}
 }
 
-function updateRating() {
+function updateDisplayedRating() {
 	userRating = (parseInt(localStorage[userKey], 10) || 0);
 	if (userRating === 0) {
 		ratingColor = ''
@@ -56,34 +56,24 @@ function updateRating() {
 		ratingColor = 'rgb(0, 206, 90)';
 	}
 }
-updateRating();
+updateDisplayedRating();
 
 window.addEventListener('storage', (e) => {
-	if (e.key === userKey) {
-		updateRating();
-	}
+	if (e.key === userKey) updateDisplayedRating();
 });
 window.addEventListener('c-update-user-rating', (e) => {
-	if (e.key === userKey) {
-		updateRating();
-	}
+	if (e.key === userKey) updateDisplayedRating();
 }, false);
 
-const upvote = () => {
+const updateRating = (diff) => {
 	const current = (parseInt(localStorage[userKey], 10) || 0);
-	trySetLSValue(userKey, current + 1);
+	trySetLSValue(userKey, current + diff);
 
 	const event = new Event('c-update-user-rating');
 	event.key = userKey;
-	window.dispatchEvent(event);
-}
-
-const downvote = () => {
-	const current = (parseInt(localStorage[userKey], 10) || 0);
-	trySetLSValue(userKey, current - 1);
-
-	const event = new Event('c-update-user-rating');
-	event.key = userKey;
+	event.userId = data.id;
+	event.prevRating = current;
+	event.newRating = current + diff;
 	window.dispatchEvent(event);
 }
 
@@ -109,11 +99,13 @@ const togglePopup = () => {
 	</button>
 
 	<div class='rating'>
-		<button on:click={upvote}>+</button>
+		<button on:click={() => updateRating(+1)}>+</button>
 		<span style="color: {ratingColor}; font-weight: {ratingColor ? 'bold': ''}">
 			{(userRating + '').padStart(3, '\xa0')}
 		</span>
-		<button on:click={downvote}>-</button>
+		<button on:click={() => updateRating(-1)}>-</button>
+		&nbsp;
+		<button style='font-size: 12px;' on:click={() => updateRating(-11)}>✕</button>
 	</div>
 
 	{#if popup}

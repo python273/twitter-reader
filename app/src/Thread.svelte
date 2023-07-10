@@ -149,6 +149,19 @@ let usersById = {};
 let opTweet = {};
 let data = [];
 
+window.addEventListener('c-update-user-rating', (e) => {
+	if (!(e.prevRating >= -10 && e.newRating < -10)) return;
+	const uid = e.userId;
+	usersById[uid].rating = e.newRating;
+	usersById = usersById;
+
+	for (let t of data) {
+		if (t.user.id !== uid) continue;
+		t.collapsed = true;
+	}
+	data = data;
+}, false);
+
 const htmlEntities = {amp: '&', lt: '<', gt: '>', quot: '"', '#039': "'"}
 const reHtmlEntities = new RegExp(
 	`&(${Object.keys(htmlEntities).join('|')});`,
@@ -270,22 +283,24 @@ const convertScrapedTo = (origT, usersById) => {
 	const media = t?.extended_entities?.media || t?.entities?.media;
 
 	const collapsed = (
-		visibleText.match(/@threadreaderapp/i)
+		u.rating < -10
 		|| username == 'threadreaderapp'
 		|| username == 'UnrollHelper'
-		|| visibleText.match(/@readwise/i)
 		|| username == 'readwise'
-		|| visibleText.match(/@NotionAddon/i)
 		|| username == 'NotionAddon'
-		|| visibleText.match(/@SaveToNotion/i)
 		|| username == 'SaveToNotion'
-		|| visibleText.match(/@sendvidbot/i)
 		|| username == 'sendvidbot'
-		|| visibleText.match(/@memdotai/i)
 		|| username == 'memdotai'
-		|| visibleText.match(/@pikaso_me/i)
 		|| username == 'pikaso_me'
-		|| parseInt(localStorage[`ur-${t.user_id_str}`], 10) < -10
+		|| (visibleText.match(/metamask/i) && visibleText.match(/gmail.com/i))
+		|| visibleText.match(/@threadreaderapp/)
+		|| visibleText.match(/@readwise/)
+		|| visibleText.match(/@NotionAddon/)
+		|| visibleText.match(/@SaveToNotion/)
+		|| visibleText.match(/@sendvidbot/)
+		|| visibleText.match(/@memdotai/)
+		|| visibleText.match(/@pikaso_me/)
+		|| text.some(p => p.some(i => i._type === 'url' && i.url.match(/\/t\.me\//)))
 	);
 
 	const obj = {
@@ -295,8 +310,7 @@ const convertScrapedTo = (origT, usersById) => {
 		_t: t,
 		id: t.id_str,
 
-		userId: t.user_id_str,
-		userData: u,
+		user: u,
 		username,
 		byColor,
 		byBgColor,
@@ -341,6 +355,7 @@ const fetchData = async () => {
 	userList.forEach(u => {
 		tempUsersById[u.rest_id] = {
 			id: u.rest_id,
+			rating: parseInt(localStorage[`ur-${u.rest_id}`], 10),
 			createdAt: new Date(u.legacy.created_at),
 			username: u.legacy.screen_name,
 			name: u.legacy.name,
@@ -418,9 +433,13 @@ onMount(fetchData);
 			</div>
 		{/each}
 
-		<div id="comment-{c.id}" class='comment' role="treeitem">
+		<div id="comment-{c.id}"
+			class='comment'
+			class:comment-blocked="{c.collapsed && c.user.rating < -10}"
+			role="treeitem"
+		>
 			<div class="comment-header">
-				<Username data={c.userData} color={c.byColor} bgColor={c.byBgColor}/>
+				<Username data={c.user} color={c.byColor} bgColor={c.byBgColor}/>
 				{#if c.isOP}<div class="op">OP</div>{/if}
 				<span class="date meta-gray" title="{c.formattedTime}">{c.timeAgo}</span>
 
@@ -444,7 +463,7 @@ onMount(fetchData);
 				</button>
 				{/if}
 
-				<div class="meta-gray"><UserNote id={c.userData.id} /></div>
+				<div class="meta-gray"><UserNote id={c.user.id} /></div>
 
 				<div class="ml-auto"></div>
 
@@ -573,11 +592,6 @@ onMount(fetchData);
 {/if}
 
 <style>
-:global(html, body) {
-	background-color: var(--bg-color);
-	color: var(--text-color);
-}
-
 .thread-page {
 	display: flex;
 	flex-direction: column;
@@ -702,13 +716,17 @@ p.p-last-line {
 	contain: content;
 }
 
+.comment-blocked {
+	filter: opacity(30%)
+}
+
 .comment-header * {
 	text-decoration: none;
 	white-space: nowrap;
 }
 
 .comment-header {
-	margin: 0 5px 3px 0;
+	margin: 0 5px 0 0;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -742,7 +760,7 @@ p.p-last-line {
 .comment-content {
 	display: flex;
 	flex-direction: column;
-	margin: 0 5px 5px 5px;
+	margin: 3px 5px 5px 5px;
 	overflow: auto hidden;
 }
 

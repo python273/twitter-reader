@@ -90,11 +90,21 @@
 </div>
 
 <style>
+:global(html, body) {
+	background-color: var(--bg-color);
+	color: var(--text-color);
+}
 .home {
 	font-size: 1.4em;
 	font-family: monospace;
 }
-
+.header {
+	width: 100%;
+	height: 32px;
+	padding: 0 16px;
+	display: flex;
+	align-items: center;
+}
 .page {
 	width: 100%;
 	overflow-x: hidden;
