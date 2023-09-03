@@ -265,7 +265,7 @@ function parseTextEntities(origT) {
 
 const convertScrapedTo = (origT, usersById) => {
 	const t = origT.legacy;
-	const u = usersById[t.user_id_str];
+	const u = usersById[t.user_id_str] || {};
 	const username = u.username;
 	const [byBgColor, byColor] = getUsernameColor(username);
 
@@ -483,7 +483,7 @@ onMount(fetchData);
 					{#if pi > 0}
 						<div class="comment-header tweet-splitter narrator-skip">
 							<div style="flex-grow: 1;"><hr></div>
-							<span class="date meta-gray" title="{c.formattedTime}">{c.timeAgo}</span>
+							<span class="date meta-gray" title="{p.formattedTime}">{p.timeAgo}</span>
 							<div class="meta-gray">
 								{#if p.favoriteCount}♥{p.favoriteCount}{/if}
 								{#if p.retweetCount} <span style="font-weight: 800;">↻</span>{p.retweetCount}{/if}
