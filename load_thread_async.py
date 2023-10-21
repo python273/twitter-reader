@@ -180,10 +180,15 @@ async def load_tweet(session, tweet_id, cursor):
             raise RateLimitError(datetime.utcnow() + timedelta(hours=24))
 
     try:
-        return r.json()
+        j = r.json()
     except Exception:
         print('json decode error', r.status_code, r.content)
         raise
+
+    if j == {'errors': [{'message': 'Invalid or expired token', 'code': 89}]}:
+        raise InvalidTokenError
+
+    return j
 
 
 def get_tweet_ids_belonging_to_thread(tweets, thread_id):
@@ -303,6 +308,9 @@ async def load_tree(pool: AioPool, thread_id):
     }
 
 
+class InvalidTokenError(Exception): pass
+
+
 class RateLimitError(Exception):
     def __init__(self, till, *args: object) -> None:
         super().__init__(*args)
@@ -319,12 +327,19 @@ class SessionManager:
             )
             session.headers['User-Agent'] = USERAGENT
             self.sessions.append({
+                'account': i,
                 'session': session,
                 'ratelimit_till': datetime.utcnow() - timedelta(minutes=1)
             })
 
+    def get_accounts(self):
+        return [i['account'] for i in self.sessions]
+
     def get_session(self):
         for i in random.sample(self.sessions, k=len(self.sessions)):
+            if i['account'].get('_invalid'):
+                continue
+
             if i['ratelimit_till'] < datetime.utcnow():
                 return i['session']
 
@@ -332,6 +347,12 @@ class SessionManager:
         for i in self.sessions:
             if i['session'] == session:
                 i['ratelimit_till'] = till
+                break
+
+    def invalidate(self, session):
+        for i in self.sessions:
+            if i['session'] == session:
+                i['account']['_invalid'] = True
                 break
 
 
@@ -346,6 +367,11 @@ async def worker_fn(worker_id: int, manager: SessionManager, tweet_id, cursor):
                     r = await load_tweet(session, tweet_id, cursor)
                     print(f'[{worker_id}] done')
                     return r
+            except InvalidTokenError as e:
+                print(f'[{worker_id}] invalid token')
+                manager.invalidate(session)
+                await asyncio.sleep(0.01)
+                continue
             except RateLimitError as e:
                 print(f'[{worker_id}] rate limited {e.till}')
                 manager.ratelimit(session, e.till)
@@ -381,7 +407,7 @@ class HttpxTwitterSigner:
 async def main():
     thread_id = sys.argv[1]
 
-    num_workers = 1
+    num_workers = 8
 
     try:
         with open('guest_accounts.json') as f:
@@ -424,6 +450,9 @@ async def main():
 
     with open(f'thread_{thread_id}.json', 'w') as f:
         json.dump(thread, f)
+
+    with open('guest_accounts.json', 'w') as f:
+        json.dump(manager.get_accounts(), f)
 
 
 if __name__ == '__main__':
