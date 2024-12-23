@@ -121,7 +121,7 @@ const togglePopup = () => {
 
 			<div class="meta">
 				<div>
-					<a href="https://twitter.com/{username}">
+					<a href="https://x.com/{username}">
 						{data.name}
 					</a>
 					{" | "}

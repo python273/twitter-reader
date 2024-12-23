@@ -75,14 +75,15 @@ def process_replies(tweets, curr, depth=0, tree=None):
 def main():
     thread_id = sys.argv[1]
 
-    with open(f'thread_{thread_id}.json', 'r') as f:
+    with open(f'threads/thread_{thread_id}.json', 'r') as f:
         thread = json.load(f)
         tweets = thread['tweets']
         users = thread['users']
     
     users_by_id = {u['rest_id']: u for u in users}
     main_tweet = [i for i in tweets if i['rest_id'] == thread_id][0]
-    tweets.sort(key=lambda t: (-t['legacy']['favorite_count'], t['rest_id']))
+    author_id = main_tweet['legacy']['user_id_str']
+    tweets.sort(key=lambda t: (-int(t['legacy']['user_id_str'] == author_id), -t['legacy']['favorite_count'], t['rest_id']))
 
     tree = process_replies(tweets, main_tweet)
 
