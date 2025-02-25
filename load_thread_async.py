@@ -17,7 +17,6 @@ except ImportError:
     uvloop_installed = False
 
 from aio_pool import AioPool
-from twitter_hmac import get_oauth_authorization
 
 red_color = "\033[91m"
 green_color = "\033[92m"
@@ -180,7 +179,12 @@ async def load_tree(pool: AioPool, thread_id):
             cursors = find_all_cursors(response)
 
             for t in tweets:
-                tl = t['legacy']
+                try:
+                    tl = t['legacy']
+                except KeyError:
+                    print(t)
+                    traceback.print_exc()
+                    continue
                 tid = t['rest_id']
                 expected_replies_count[tid] = max(
                     expected_replies_count[tid], tl['reply_count'])

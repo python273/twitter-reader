@@ -1,0 +1,9 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+httpx = {extras = ["http2", "socks", "brotli"], version = "*"}
+
+[dev-packages]

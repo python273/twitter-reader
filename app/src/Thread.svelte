@@ -809,6 +809,7 @@ hr {
 	object-fit: contain;
 	max-height: 400px;
 	height: auto;
+	border: 2px solid var(--brand-color);
 }
 
 .attach-gif {

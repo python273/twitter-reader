@@ -40,25 +40,31 @@ const cyrb53 = function(str, seed = 0) {
 };
 
 
-export function timeSince(date) {
-    let seconds = Math.floor((new Date() - date) / 1000);
+export function timeSince(dateInput) {
+    // 59s, 59m, 23h, Jan 11 (2025), Sep 1 (2024), 2024 Jan 31 
+    const now = new Date();
+    const date = new Date(dateInput);
+    const seconds = Math.floor((now - date) / 1000);
 
-    let interval = seconds / 31536000;
-    if (interval > 1) return Math.floor(interval) + "y ago";
+    if (seconds < 60) return seconds + "s ago";
 
-    interval = seconds / 2592000;
-    if (interval > 1) return Math.floor(interval) + "mo ago";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + "m ago";
 
-    interval = seconds / 86400;
-    if (interval > 1) return Math.floor(interval) + "d ago";
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + "h ago";
 
-    interval = seconds / 3600;
-    if (interval > 1) return Math.floor(interval) + "h ago";
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    interval = seconds / 60;
-    if (interval > 1) return Math.floor(interval) + "m ago";
+    let thresholdYear = now.getFullYear() - 1;
+    let thresholdMonth = now.getMonth() + 1;
+    const threshold = new Date(thresholdYear, thresholdMonth, 1);
 
-    return Math.floor(seconds) + "s ago";
+    if (date >= threshold) {
+        return months[date.getMonth()] + " " + date.getDate();
+    }
+
+    return date.getFullYear() + " " + months[date.getMonth()] + " " + date.getDate();
 }
 
 export function trySetLSValue(key, value) {
