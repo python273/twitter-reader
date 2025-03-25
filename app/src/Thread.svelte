@@ -588,7 +588,7 @@ p {
 }
 
 p.p-last-line {
-	margin: 0 0 1px 0;
+	margin: 0.5em 0 1px 0;
 }
 
 /* p {

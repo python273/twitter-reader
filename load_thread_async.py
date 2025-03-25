@@ -52,23 +52,15 @@ def find_dicts_deep(data, fn_match):
 
 def find_all_cursors(data):
     return find_dicts_deep(
-        data,
-        lambda d: d.get('itemType') == 'TimelineTimelineCursor'
-    )
+        data, lambda d: d.get('itemType') == 'TimelineTimelineCursor')
 
 
 def find_all_tweets(data):
-    return find_dicts_deep(
-        data,
-        lambda d: d.get('__typename') == 'Tweet'
-    )
+    return find_dicts_deep(data, lambda d: d.get('__typename') == 'Tweet')
 
 
 def find_all_users(data):
-    return find_dicts_deep(
-        data,
-        lambda d: d.get('__typename') == 'User'
-    )
+    return find_dicts_deep(data, lambda d: d.get('__typename') == 'User')
 
 
 async def load_tweet(session, tweet_id, cursor):
@@ -175,6 +167,10 @@ async def load_tree(pool: AioPool, thread_id):
                 # continue
 
             tweets = find_all_tweets(response)
+            tweets.extend([i['tweet'] for i in find_dicts_deep(
+                response,
+                lambda d: d.get('__typename') == 'TweetWithVisibilityResults'
+            )])
             users = find_all_users(response)
             cursors = find_all_cursors(response)
 
@@ -182,7 +178,7 @@ async def load_tree(pool: AioPool, thread_id):
                 try:
                     tl = t['legacy']
                 except KeyError:
-                    print(t)
+                    print('#legacy', t)
                     traceback.print_exc()
                     continue
                 tid = t['rest_id']
@@ -198,7 +194,7 @@ async def load_tree(pool: AioPool, thread_id):
 
             for u in users:
                 if 'rest_id' not in u:
-                    print(u)
+                    print('#rest_id', u)
                     continue
                 loaded_users[u['rest_id']] = u
 
@@ -374,7 +370,7 @@ async def main():
     await pool.shutdown()
 
     with open(f'threads/thread_{thread_id}.json', 'w') as f:
-        json.dump(thread, f)
+        json.dump(thread, f, ensure_ascii=False)
 
 
 if __name__ == '__main__':
