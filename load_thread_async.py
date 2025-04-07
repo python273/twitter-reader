@@ -309,7 +309,7 @@ async def worker_fn(worker_id: int, manager: SessionManager, tweet_id, cursor):
                 session = manager.get_session()
                 if session:
                     r = await load_tweet(session, tweet_id, cursor)
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(0.2)
                     print(f'[{worker_id}] done')
                     return r
             except InvalidTokenError as e:
