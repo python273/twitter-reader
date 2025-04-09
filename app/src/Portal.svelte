@@ -1,24 +1,16 @@
 <script>
-	import { onMount, onDestroy } from "svelte";
-	export let target = globalThis.document?.body;
+function portal(el) {
+  function destroy() {
+    if (el.parentNode) {
+      el.parentNode.removeChild(el);
+    }
+  }
 
-	let ref;
-
-	onMount(() => {
-		if (target) {
-			target.appendChild(ref);
-		}
-	});
-
-	onDestroy(() => {
-		setTimeout(() => {
-			if (ref?.parentNode) {
-				ref.parentNode?.removeChild(ref);
-			}
-		});
-	});
+  document.body.appendChild(el);
+  return {destroy};
+}
 </script>
 
-<div bind:this={ref}>
-	<slot />
+<div use:portal>
+  <slot />
 </div>
