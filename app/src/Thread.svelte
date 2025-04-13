@@ -53,15 +53,11 @@ function collapse(event, index) {
 	comment.collapsed = newValue;
 
 	let depth = comment.depth;
-	index += 1;
-
-	while (index < data.length) {
+	for (index++; index < data.length; index++) {
 		let comment = data[index];
-		index += 1;
 		if (comment.depth <= depth) { break; }
 		comment.collapsed = newValue;
 	}
-
 	data = data;
 }
 
@@ -97,20 +93,16 @@ async function handlePlayComment(commentId=null) {
 		narrator = currentNarrator;
 		currentlyReading = commentId;
 	}
-	const narratorRate = (
-		"cfg-narrator-rate" in localStorage ?
-			parseFloat(localStorage["cfg-narrator-rate"]) : 1.2
-	);
+	const narratorRate = parseFloat(localStorage["cfg-narrator-rate"] || 1.2);
 	narratorPlaying = true;
 	await currentNarrator.start({rate: narratorRate});
-	if (narrator === currentNarrator) {
-		currentlyReading = null;
-		narratorPlaying = false;
-	}
+	if (narrator !== currentNarrator) return;
+
+	narratorPlaying = false;
 
 	if (!currentNarrator._stopped) {  // if stopped by itself, go to the next comment
 		console.log('next comment');
-		const currentCommentIndex = data.findIndex(c => c.id === commentId);
+		const currentCommentIndex = data.findIndex(c => c.id === currentlyReading);
 		if (currentCommentIndex < data.length - 1) {
 			handlePlayComment(data[currentCommentIndex + 1].id);
 		}
