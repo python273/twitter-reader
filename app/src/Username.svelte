@@ -124,15 +124,12 @@ const togglePopup = () => {
 					<a href="https://x.com/{username}">
 						{data.name}
 					</a>
-					{" | "}
+					|
 					{#if data.location}
-						location: {data.location}
-						{" | "}
+						location: {data.location} |
 					{/if}
-					following: {data.followingCount}
-					{" | "}
-					followers: {data.followersCount}
-					{" | "}
+					following: {data.followingCount} |
+					followers: {data.followersCount} |
 					<span title="{data.createdAt.toLocaleString("en-US")}">
 						joined: {timeSince(data.createdAt)}
 					</span>

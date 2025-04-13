@@ -67,6 +67,7 @@
 {/if}
 
 <div class="header">
+	<!-- svelte-ignore a11y_invalid_attribute -->
 	<div class="home"><a href="#" class="no-vs">Twitter Reader</a></div>
 
 	<div class='ml-auto'></div>
@@ -77,7 +78,7 @@
 			type="checkbox" bind:checked={darkTheme}
 			title="dark theme"
 		/>
-		<label for="dark-theme-checkbox" class="c-pointer">{" "}☾</label>
+		<label for="dark-theme-checkbox" class="c-pointer">☾</label>
 	</div>
 </div>
 

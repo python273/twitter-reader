@@ -1,6 +1,6 @@
 <script>
 import { onDestroy, onMount, tick } from 'svelte';
-import { rgbToCss, hashString, timeSince, HSVtoRGB, trySetLSValue } from './utils';
+import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils';
 import { Narrator } from './narrator';
 import Username from './Username.svelte';
 import UserNote from './UserNote.svelte';
@@ -9,6 +9,7 @@ import UserNote from './UserNote.svelte';
 function getUsernameColor(username) {
 	if (!username) return ["#000", "#fff"];
 	const i = hashString(username);
+	// eslint-disable-next-line no-unused-vars
 	const [x, y, z] = [
 		((i >> 16) & 0xFFFF) / (0xFFFF + 0.1),
 		((i >> 8) & 0xFF) / 255.0,
@@ -418,7 +419,6 @@ onMount(fetchData);
 			class='comment'
 			class:comment-top-level="{c.depth === 0}"
 			class:comment-blocked="{c.collapsed && c.user.rating < -10}"
-			role="treeitem"
 		>
 			<div class="comment-header">
 				<Username data={c.user} color={c.byColor} bgColor={c.byBgColor}/>
@@ -486,7 +486,7 @@ onMount(fetchData);
 							{#each paragraph as part}
 								{#if part._type === 'text'}
 									{#each part.text as line, line_i}
-										{line}{#if line_i < (part.text.length-1)}<div style="display: none;" data-narrator-pause>&nbsp;.&nbsp;</div><br/>{/if}
+										{line}{#if line_i < (part.text.length-1)}<span style="display: none;" data-narrator-pause>&nbsp;.&nbsp;</span><br/>{/if}
 									{/each}
 								{:else if part._type === 'user_mention'}
 									<a href={`https://x.com/${part.username}`}>{part.text}</a>

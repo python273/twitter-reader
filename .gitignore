@@ -5,3 +5,4 @@ thread_*.json
 **/__pycache__
 
 saved_tokens.txt
+.aider*

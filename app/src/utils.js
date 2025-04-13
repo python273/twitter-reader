@@ -73,7 +73,7 @@ export function trySetLSValue(key, value) {
             localStorage[key] = value;
             return true;
         } catch {
-
+            continue
         }
     }
     return false;
