@@ -1,24 +1,24 @@
 .narrating {
-	position: relative;
-	z-index: 1;
-	background-color: #ffffcc69 !important;
+  position: relative;
+  z-index: 1;
+  background-color: #ffffcc69 !important;
 }
 
 .narrate-word-highlight {
-	position: absolute;
-	display: none;
-	transform: translate(-50%, calc(-50% - 0px));
-	z-index: -1;
-	border-bottom-style: solid;
-	border-bottom-width: 4px;
-	transition: left 0.1s ease, width 0.1s ease;
-	border-bottom-color: #6f6f6f;
+  position: absolute;
+  display: none;
+  transform: translate(-50%, calc(-50% - 0px));
+  z-index: -1;
+  border-bottom-style: solid;
+  border-bottom-width: 4px;
+  transition: left 0.1s ease, width 0.1s ease;
+  border-bottom-color: #6f6f6f;
 }
 
 .narrate-word-highlight.newline {
-	transition: none;
+  transition: none;
 }
 
 .narrating > .narrate-word-highlight {
-	display: inline-block;
+  display: inline-block;
 }

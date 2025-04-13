@@ -15,7 +15,7 @@ export default defineConfig([
     rules: {
       'no-self-assign': 'off',
       'semi': ['error', 'never'],
-      // 'indent': ['error', 2],
+      'indent': ['error', 2],
       'svelte/require-each-key': 'off',
       'svelte/no-dom-manipulating': 'off',
       'no-unused-vars': ['error', {

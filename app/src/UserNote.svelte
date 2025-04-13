@@ -5,15 +5,15 @@ const userNoteKey = `ur-n-${id}`
 let note = ''
 
 function updateNote() {
-	note = localStorage[userNoteKey] || ''
+  note = localStorage[userNoteKey] || ''
 }
 updateNote()
 
 window.addEventListener('storage', (e) => {
-	if (e.key === userNoteKey) updateNote()
+  if (e.key === userNoteKey) updateNote()
 })
 window.addEventListener('c-update-user-note', (e) => {
-	if (e.key === userNoteKey) updateNote()
+  if (e.key === userNoteKey) updateNote()
 }, false)
 </script>
 
@@ -21,6 +21,6 @@ window.addEventListener('c-update-user-note', (e) => {
 
 <style>
 .user-note {
-	font-weight: 500;
+  font-weight: 500;
 }
 </style>

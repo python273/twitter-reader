@@ -54,12 +54,12 @@ Narrator.prototype = {
             return nf.FILTER_REJECT
           }
 
-        //   let bb = wu.getBoundsWithoutFlushing(node);
-        //   if (!bb.width || !bb.height) {
-        //     // Skip non-rendered nodes. We don't reject because a zero-sized
-        //     // container can still have visible, "overflowed", content.
-        //     return nf.FILTER_SKIP;
-        //   }
+          //   let bb = wu.getBoundsWithoutFlushing(node);
+          //   if (!bb.width || !bb.height) {
+          //     // Skip non-rendered nodes. We don't reject because a zero-sized
+          //     // container can still have visible, "overflowed", content.
+          //     return nf.FILTER_SKIP;
+          //   }
 
           for (let c = node.firstChild; c; c = c.nextSibling) {
             if (c.nodeType == c.TEXT_NODE && /\S/.test(c.textContent)) {
