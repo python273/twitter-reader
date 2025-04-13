@@ -2,12 +2,12 @@
 function portal(el) {
   function destroy() {
     if (el.parentNode) {
-      el.parentNode.removeChild(el);
+      el.parentNode.removeChild(el)
     }
   }
 
-  document.body.appendChild(el);
-  return {destroy};
+  document.body.appendChild(el)
+  return {destroy}
 }
 </script>
 

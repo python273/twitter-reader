@@ -1,92 +1,92 @@
 <script>
-import { timeSince, trySetLSValue } from "./utils";
-import Portal from './Portal.svelte';
+import { timeSince, trySetLSValue } from "./utils"
+import Portal from './Portal.svelte'
 
-export let data;
-export let color;
-export let bgColor;
+export let data
+export let color
+export let bgColor
 
-const username = data.username;
+const username = data.username
 
-let ref = null;
+let ref = null
 
-let popup = false;
-let popupStyle = {};
+let popup = false
+let popupStyle = {}
 
-const userKey = `ur-${data.id}`;
-const userNoteKey = `ur-n-${data.id}`;
-let note = '';
-let userRating = 9999;
-let ratingColor = '';
+const userKey = `ur-${data.id}`
+const userNoteKey = `ur-n-${data.id}`
+let note = ''
+let userRating = 9999
+let ratingColor = ''
 
 function updateNote() {
-	note = localStorage[userNoteKey] || '';
+	note = localStorage[userNoteKey] || ''
 }
-updateNote();
+updateNote()
 
 window.addEventListener('storage', (e) => {
-	if (e.key === userNoteKey) updateNote();
-});
+	if (e.key === userNoteKey) updateNote()
+})
 window.addEventListener('c-update-user-note', (e) => {
-	if (e.key === userNoteKey) updateNote();
-}, false);
+	if (e.key === userNoteKey) updateNote()
+}, false)
 
 function onNoteChange() {
-	localStorage[userNoteKey] = note;
+	localStorage[userNoteKey] = note
 
-	const event = new Event('c-update-user-note');
-	event.key = userNoteKey;
-	window.dispatchEvent(event);
+	const event = new Event('c-update-user-note')
+	event.key = userNoteKey
+	window.dispatchEvent(event)
 }
 
 function onNoteKeydown(event) {
 	if (event.key === "Enter" || event.key === "Escape") {
-		event.preventDefault();
-		event.target.blur();
+		event.preventDefault()
+		event.target.blur()
 	}
 }
 
 function updateDisplayedRating() {
-	userRating = (parseInt(localStorage[userKey], 10) || 0);
+	userRating = (parseInt(localStorage[userKey], 10) || 0)
 	if (userRating === 0) {
 		ratingColor = ''
 	} else if (userRating < 0) {
-		ratingColor = 'rgb(238, 0, 0)';
+		ratingColor = 'rgb(238, 0, 0)'
 	} else {
-		ratingColor = 'rgb(0, 206, 90)';
+		ratingColor = 'rgb(0, 206, 90)'
 	}
 }
-updateDisplayedRating();
+updateDisplayedRating()
 
 window.addEventListener('storage', (e) => {
-	if (e.key === userKey) updateDisplayedRating();
-});
+	if (e.key === userKey) updateDisplayedRating()
+})
 window.addEventListener('c-update-user-rating', (e) => {
-	if (e.key === userKey) updateDisplayedRating();
-}, false);
+	if (e.key === userKey) updateDisplayedRating()
+}, false)
 
 const updateRating = (diff) => {
-	const current = (parseInt(localStorage[userKey], 10) || 0);
-	trySetLSValue(userKey, current + diff);
+	const current = (parseInt(localStorage[userKey], 10) || 0)
+	trySetLSValue(userKey, current + diff)
 
-	const event = new Event('c-update-user-rating');
-	event.key = userKey;
-	event.userId = data.id;
-	event.prevRating = current;
-	event.newRating = current + diff;
-	window.dispatchEvent(event);
+	const event = new Event('c-update-user-rating')
+	event.key = userKey
+	event.userId = data.id
+	event.prevRating = current
+	event.newRating = current + diff
+	window.dispatchEvent(event)
 }
 
 const togglePopup = () => {
 	if (!popup) {
-		const pos = ref.getBoundingClientRect();
-		const posTop = pos.top + pos.height + window.scrollY;
-		const posLeft = pos.left + window.scrollX;
+		const pos = ref.getBoundingClientRect()
+		const posTop = pos.top + pos.height + window.scrollY
+		const posLeft = pos.left + window.scrollX
 
 		popupStyle = `position: absolute; top: ${posTop}px; left: ${posLeft}px;`
 	}
-	popup = !popup;
-};
+	popup = !popup
+}
 </script>
 
 <div class="username-container" bind:this={ref}>

@@ -1,41 +1,41 @@
 <script>
-	import Thread from './Thread.svelte';
-	import { trySetLSValue } from './utils';
+	import Thread from './Thread.svelte'
+	import { trySetLSValue } from './utils'
 
 	if (!("dark-theme" in localStorage)) {
 		const val = (
 			window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-		) ? 1 : 0;
-		trySetLSValue("dark-theme", val);
+		) ? 1 : 0
+		trySetLSValue("dark-theme", val)
 	}
 
-	let darkTheme = localStorage["dark-theme"] === "1";
+	let darkTheme = localStorage["dark-theme"] === "1"
 	$: {
-		trySetLSValue("dark-theme", darkTheme ? 1 : 0);
+		trySetLSValue("dark-theme", darkTheme ? 1 : 0)
 	}
 
 	window.addEventListener('storage', (event) => {
-		if (event.key !== "dark-theme") return;
+		if (event.key !== "dark-theme") return
 		darkTheme = localStorage["dark-theme"] === "1"
-	});
+	})
 
-	let page = 'thread';
-	let props = {};
+	let page = 'thread'
+	let props = {}
 
 	const parseHash = () => {
-		const h = location.hash.slice(1);
-		let threadId = h;
+		const h = location.hash.slice(1)
+		let threadId = h
 
 		if (threadId.match(/^[0-9]+$/)) {
-			page = 'thread';
-			props = {threadId};
+			page = 'thread'
+			props = {threadId}
 		}
-	};
+	}
 
-	parseHash();
+	parseHash()
 	window.addEventListener("hashchange", () => {
-		parseHash();
-	}, false);
+		parseHash()
+	}, false)
 </script>
 
 {#if !darkTheme}

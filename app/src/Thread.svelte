@@ -1,170 +1,170 @@
 <script>
-import { onDestroy, onMount, tick } from 'svelte';
-import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils';
-import { Narrator } from './narrator';
-import Username from './Username.svelte';
-import UserNote from './UserNote.svelte';
+import { onDestroy, onMount, tick } from 'svelte'
+import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils'
+import { Narrator } from './narrator'
+import Username from './Username.svelte'
+import UserNote from './UserNote.svelte'
 
 
 function getUsernameColor(username) {
-	if (!username) return ["#000", "#fff"];
-	const i = hashString(username);
+	if (!username) return ["#000", "#fff"]
+	const i = hashString(username)
 	// eslint-disable-next-line no-unused-vars
 	const [x, y, z] = [
 		((i >> 16) & 0xFFFF) / (0xFFFF + 0.1),
 		((i >> 8) & 0xFF) / 255.0,
 		(i & 0xFF) / 256.0
-	];
-	let [r, g, b] = HSVtoRGB(x, y * 0.7 + 0.3, 1.0,).map(i => i * 255.0);
-	const byBgColor = rgbToCss(r, g, b);
-	const byColor = ((r * 0.299 + g * 0.587 + b * 0.114) > 186) ? '#000' : '#fff';
-	return [byBgColor, byColor];
+	]
+	let [r, g, b] = HSVtoRGB(x, y * 0.7 + 0.3, 1.0,).map(i => i * 255.0)
+	const byBgColor = rgbToCss(r, g, b)
+	const byColor = ((r * 0.299 + g * 0.587 + b * 0.114) > 186) ? '#000' : '#fff'
+	return [byBgColor, byColor]
 }
 
-let colorScroll = [];
-let totalScrollHeight = 0;
+let colorScroll = []
+let totalScrollHeight = 0
 async function updateColorScroll(data) {
-	if (!data || data.length === 0) return;
-	await tick();
+	if (!data || data.length === 0) return
+	await tick()
 
-	const out = [];
+	const out = []
 
 	// the first el is offset to the first comment
-	const el = document.getElementById(`comment-${data[0].id}`);
-	out.push({color: '', height: el.parentElement.offsetTop});
+	const el = document.getElementById(`comment-${data[0].id}`)
+	out.push({color: '', height: el.parentElement.offsetTop})
 
 	for (let c of data) {
-		const el = document.getElementById(`comment-${c.id}`);
+		const el = document.getElementById(`comment-${c.id}`)
 		if (!el) {
-			console.error(`Comment ${c.id} not found`);
-			continue;
+			console.error(`Comment ${c.id} not found`)
+			continue
 		};
-		const elHeight = el.parentElement.offsetHeight;
-		out.push({color: c.byBgColor, height: elHeight});
+		const elHeight = el.parentElement.offsetHeight
+		out.push({color: c.byBgColor, height: elHeight})
 	}
 
-	colorScroll = out;
-	totalScrollHeight = document.documentElement.scrollHeight;
+	colorScroll = out
+	totalScrollHeight = document.documentElement.scrollHeight
 }
-$: { updateColorScroll(data); }
+$: { updateColorScroll(data) }
 
 function collapse(event, index) {
-	let comment = data[index];
-	let newValue = !comment.collapsed;
-	comment.collapsed = newValue;
+	let comment = data[index]
+	let newValue = !comment.collapsed
+	comment.collapsed = newValue
 
-	let depth = comment.depth;
+	let depth = comment.depth
 	for (index++; index < data.length; index++) {
-		let comment = data[index];
-		if (comment.depth <= depth) { break; }
-		comment.collapsed = newValue;
+		let comment = data[index]
+		if (comment.depth <= depth) { break }
+		comment.collapsed = newValue
 	}
-	data = data;
+	data = data
 }
 
-let currentlyReading = null;
-let narrator = null;
-let narratorPlaying = false;
+let currentlyReading = null
+let narrator = null
+let narratorPlaying = false
 
 onDestroy(() => {
-	if (narrator) narrator.stop();
-});
+	if (narrator) narrator.stop()
+})
 
 async function handlePlayComment(commentId=null) {
 	// null - reuse current narrator (global controls)
 	// same id as reading - pause/continue
 	// new id - stop current, start new
-	console.log('handlePlayComment', commentId, currentlyReading);
+	console.log('handlePlayComment', commentId, currentlyReading)
 	if (narrator?.speaking) {
-		narrator.stop();
-		narratorPlaying = false;
-		if (commentId === null || currentlyReading === commentId) return;
+		narrator.stop()
+		narratorPlaying = false
+		if (commentId === null || currentlyReading === commentId) return
 	}
 
-	let currentNarrator;
+	let currentNarrator
 	if (commentId === null) {
-		currentNarrator = narrator;
+		currentNarrator = narrator
 	} else {
-		const el = document.querySelector(`#comment-${commentId} .comment-content`);
+		const el = document.querySelector(`#comment-${commentId} .comment-content`)
 		currentNarrator = new Narrator(
 			window,
 			el,
 			new Promise((resolve) => {resolve("en-US")})
-		);
-		narrator = currentNarrator;
-		currentlyReading = commentId;
+		)
+		narrator = currentNarrator
+		currentlyReading = commentId
 	}
-	const narratorRate = parseFloat(localStorage["cfg-narrator-rate"] || 1.2);
-	narratorPlaying = true;
-	await currentNarrator.start({rate: narratorRate});
-	if (narrator !== currentNarrator) return;
+	const narratorRate = parseFloat(localStorage["cfg-narrator-rate"] || 1.2)
+	narratorPlaying = true
+	await currentNarrator.start({rate: narratorRate})
+	if (narrator !== currentNarrator) return
 
-	narratorPlaying = false;
+	narratorPlaying = false
 
 	if (!currentNarrator._stopped) {  // if stopped by itself, go to the next comment
-		console.log('next comment');
-		const currentCommentIndex = data.findIndex(c => c.id === currentlyReading);
+		console.log('next comment')
+		const currentCommentIndex = data.findIndex(c => c.id === currentlyReading)
 		if (currentCommentIndex < data.length - 1) {
-			handlePlayComment(data[currentCommentIndex + 1].id);
+			handlePlayComment(data[currentCommentIndex + 1].id)
 		}
 	}
 }
 
 
 function handleNarratorPrev(e) {
-	narrator.skipPrevious();
+	narrator.skipPrevious()
 }
 
 function handleNarratorNext(e) {
-	narrator.skipNext();
+	narrator.skipNext()
 }
 
 // ###################################################################################
 
-export let threadId;
-let usersById = {};
-let opTweet = {};
-let data = [];
+export let threadId
+let usersById = {}
+let opTweet = {}
+let data = []
 
 window.addEventListener('c-update-user-rating', (e) => {
-	if (!(e.prevRating >= -10 && e.newRating < -10)) return;
-	const uid = e.userId;
-	usersById[uid].rating = e.newRating;
-	usersById = usersById;
+	if (!(e.prevRating >= -10 && e.newRating < -10)) return
+	const uid = e.userId
+	usersById[uid].rating = e.newRating
+	usersById = usersById
 
 	for (let t of data) {
-		if (t.user.id !== uid) continue;
-		t.collapsed = true;
+		if (t.user.id !== uid) continue
+		t.collapsed = true
 	}
-	data = data;
-}, false);
+	data = data
+}, false)
 
 const htmlEntities = {amp: '&', lt: '<', gt: '>', quot: '"', '#039': "'"}
-const reHtmlEntities = new RegExp(`&(${Object.keys(htmlEntities).join('|')});`, 'g');
+const reHtmlEntities = new RegExp(`&(${Object.keys(htmlEntities).join('|')});`, 'g')
 function unescapeHtmlEntities(str) {
-	return str.replace(reHtmlEntities, (m, c) => htmlEntities[c]);
+	return str.replace(reHtmlEntities, (m, c) => htmlEntities[c])
 }
 
 function parseTextEntities(origT) {
 	// Parse tweet entities and split text to paragraphs
-	const t = origT.legacy;
+	const t = origT.legacy
 
-	let text;
-	let entities;
-	let richtext_tags;
-	let [displayA, displayB] = [null, null];
+	let text
+	let entities
+	let richtext_tags
+	let [displayA, displayB] = [null, null]
 
-	const noteTweet = origT?.note_tweet?.note_tweet_results?.result;
+	const noteTweet = origT?.note_tweet?.note_tweet_results?.result
 	if (noteTweet) {
-		text = Array.from(noteTweet['text']);
-		entities = noteTweet['entity_set'];
-		[displayA, displayB] = [0, text.length];
-		richtext_tags = noteTweet?.richtext?.richtext_tags || [];
+		text = Array.from(noteTweet['text'])
+		entities = noteTweet['entity_set']
+		;[displayA, displayB] = [0, text.length]
+		richtext_tags = noteTweet?.richtext?.richtext_tags || []
 	} else {
-		text = Array.from(t['full_text']);
-		entities = t.entities;
-		[displayA, displayB] = t['display_text_range'];
-		richtext_tags = [];
+		text = Array.from(t['full_text'])
+		entities = t.entities
+		;[displayA, displayB] = t['display_text_range']
+		richtext_tags = []
 	}
 
 	const allEntities = [
@@ -176,30 +176,30 @@ function parseTextEntities(origT) {
 	]
 
 	// dummy entity to parse text after the last real entity
-	allEntities.push({_type: 'end', indices: [displayB, displayB]});
+	allEntities.push({_type: 'end', indices: [displayB, displayB]})
 
-	allEntities.sort((a, b) => a.indices[0] - b.indices[0]);
+	allEntities.sort((a, b) => a.indices[0] - b.indices[0])
 
-	const paragraphs = [];
-	let lastIndex = 0;
-	let currentParagraph = [];
+	const paragraphs = []
+	let lastIndex = 0
+	let currentParagraph = []
 
 	for (let entity of allEntities) {
-		const [a, b] = entity.indices;
+		const [a, b] = entity.indices
 
 		if (lastIndex < a) {
-			const textParagraphs = text.slice(lastIndex, a).join('').split(/\n{2,}/g);
+			const textParagraphs = text.slice(lastIndex, a).join('').split(/\n{2,}/g)
 
 			for (const i in textParagraphs) {
 				if (i > 0) {
-					paragraphs.push(currentParagraph);
-					currentParagraph = [];
+					paragraphs.push(currentParagraph)
+					currentParagraph = []
 				}
 				if (textParagraphs[i]) {
 					currentParagraph.push({
 						_type: 'text',
 						text: unescapeHtmlEntities(textParagraphs[i]).split('\n')
-					});
+					})
 				}
 			}
 		}
@@ -209,57 +209,57 @@ function parseTextEntities(origT) {
 				_type: entity._type,
 				indices: [a, b],
 				text: text.slice(a, b).join(''),
-			};
+			}
 			if (e._type === 'user_mention') {
-				e.username = entity.screen_name;
+				e.username = entity.screen_name
 			} else if (e._type === 'url') {
-				e.url = entity.expanded_url;
-				e.urldecoded = decodeURI(entity.expanded_url);
+				e.url = entity.expanded_url
+				e.urldecoded = decodeURI(entity.expanded_url)
 			} else if (e._type === 'hashtag') {
-				e.hashtag = entity.text;
+				e.hashtag = entity.text
 			} else if (e._type === 'rich') {
-				e.richtext_types = entity.richtext_types;
+				e.richtext_types = entity.richtext_types
 			}
 
-			currentParagraph.push(e);
+			currentParagraph.push(e)
 		}
 
-		lastIndex = b;
+		lastIndex = b
 	}
 
-	paragraphs.push(currentParagraph);
+	paragraphs.push(currentParagraph)
 
 	// remove parts out of visible range
 	for (let i in paragraphs) {
-		const p = paragraphs[i];
+		const p = paragraphs[i]
 		paragraphs[i] = p.filter(part => {
-			if (part._type === 'text') return true;
-			const [a, b] = part.indices;
-			return a >= displayA && b <= displayB;
+			if (part._type === 'text') return true
+			const [a, b] = part.indices
+			return a >= displayA && b <= displayB
 		})
 	}
 
-	return paragraphs;
+	return paragraphs
 }
 
 
 const convertScrapedTo = (origT, usersById) => {
-	const t = origT.legacy;
-	const u = usersById[t.user_id_str] || {};
-	const username = u.username;
-	const [byBgColor, byColor] = getUsernameColor(username);
+	const t = origT.legacy
+	const u = usersById[t.user_id_str] || {}
+	const username = u.username
+	const [byBgColor, byColor] = getUsernameColor(username)
 
-	const [a, b] = t['display_text_range'];
+	const [a, b] = t['display_text_range']
 	// some unicode madness, String.substr works too, but deprecated?
 	// String.slice and String.substring split unicode chars
 	const visibleText = unescapeHtmlEntities(
 		Array.from(t['full_text']).slice(a, b).join('')
-	);
-	const text = parseTextEntities(origT);
-	const date = new Date(t.created_at);
+	)
+	const text = parseTextEntities(origT)
+	const date = new Date(t.created_at)
 
 	// TODO: convert format
-	const media = t?.extended_entities?.media || t?.entities?.media;
+	const media = t?.extended_entities?.media || t?.entities?.media
 
 	const collapsed = (
 		u.rating < -10
@@ -280,7 +280,7 @@ const convertScrapedTo = (origT, usersById) => {
 		|| visibleText.match(/@memdotai/)
 		|| visibleText.match(/@pikaso_me/)
 		|| text.some(p => p.some(i => i._type === 'url' && i.url.match(/\/t\.me\//)))
-	);
+	)
 
 	const obj = {
 		// pad: [],
@@ -310,26 +310,26 @@ const convertScrapedTo = (origT, usersById) => {
 		visibleRawText: visibleText,
 
 		media,
-	};
+	}
 
 	if (origT._parts) {  // thread tweets group
-		obj.parts = origT._parts.map(i => convertScrapedTo(i, usersById));
+		obj.parts = origT._parts.map(i => convertScrapedTo(i, usersById))
 	} else {
-		obj.parts = [];
+		obj.parts = []
 	}
 
 	if (origT._quoted) {  // quoted tweet
-		obj._quoted = convertScrapedTo(origT._quoted, usersById);
+		obj._quoted = convertScrapedTo(origT._quoted, usersById)
 	}
 
-	return obj;
+	return obj
 }
 
 const fetchData = async () => {
-	const thread = await (await fetch(`/tree_${threadId}.json`)).json();
-	opTweet = thread['tree'][0];
+	const thread = await (await fetch(`/tree_${threadId}.json`)).json()
+	opTweet = thread['tree'][0]
 
-	usersById = {};
+	usersById = {}
 	for (let u of Object.values(thread['users_by_id'])) {
 		usersById[u.rest_id] = {
 			id: u.rest_id,
@@ -343,42 +343,42 @@ const fetchData = async () => {
 
 			followingCount: u.legacy.friends_count,
 			followersCount: u.legacy.followers_count,
-		};
+		}
 	}
 
-	const tempTree = thread['tree'].map(t => convertScrapedTo(t, usersById));
-	window.document.title = `${tempTree[0].visibleRawText} | Twitter Reader`;
+	const tempTree = thread['tree'].map(t => convertScrapedTo(t, usersById))
+	window.document.title = `${tempTree[0].visibleRawText} | Twitter Reader`
 
-	let tweetStack = [];
-	let prevDepth = 0;
+	let tweetStack = []
+	let prevDepth = 0
 
 	for(let t of tempTree) {
-		t.pad = [];
+		t.pad = []
 		for(let i = 1; i < t.depth; i++) {
 			t.pad.push({
 				byBgColor: tweetStack[i].byBgColor,
 				sameUser: tweetStack[i].username === t.username,
-			});
+			})
 		}
 
 		if (t.depth == prevDepth) {
-			tweetStack[t.depth] = t;  // replace if at the same level
+			tweetStack[t.depth] = t  // replace if at the same level
 		} else if (t.depth > prevDepth) {
-			tweetStack.push(t);  // push if deeper
+			tweetStack.push(t)  // push if deeper
 		} else if (t.depth < prevDepth) {
-			tweetStack.length = t.depth;  // truncate to depth
-			tweetStack.push(t); // push
+			tweetStack.length = t.depth  // truncate to depth
+			tweetStack.push(t) // push
 		}
 
-		prevDepth = t.depth;
+		prevDepth = t.depth
 
-		t.depth = Math.max(0, t.depth - 1);  // remove main tweet's pad
+		t.depth = Math.max(0, t.depth - 1)  // remove main tweet's pad
 	}
 
-	data = tempTree;
-};
+	data = tempTree
+}
 
-onMount(fetchData);
+onMount(fetchData)
 </script>
 
 {#if data.length}
