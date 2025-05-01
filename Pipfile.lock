@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "4e4505e55f5f13d05e072d90e1441f2b7b9f4cc39044e400a38c114bd2dbfdc3"
+            "sha256": "f58569cc17e6cb6386d2a64b53ed2d046d81eea3a83ea6501876cfbeecf215bf"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -21,6 +21,14 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==4.6.2.post1"
+        },
+        "beautifulsoup4": {
+            "hashes": [
+                "sha256:9bbbb14bfde9d79f38b8cd5f8c7c85f4b8f2523190ebed90e950a8dea4cb1c4b",
+                "sha256:dbb3c4e1ceae6aefebdaf2423247260cd062430a410e38c66f2baa50a8437195"
+            ],
+            "markers": "python_full_version >= '3.7.0'",
+            "version": "==4.13.4"
         },
         "brotli": {
             "hashes": [
@@ -236,6 +244,26 @@
             ],
             "markers": "python_version >= '3.6'",
             "version": "==1.0.0"
+        },
+        "soupsieve": {
+            "hashes": [
+                "sha256:6e60cc5c1ffaf1cebcc12e8188320b72071e922c2e897f737cadce79ad5d30c4",
+                "sha256:ad282f9b6926286d2ead4750552c8a6142bc4c783fd66b0293547c8fe6ae126a"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==2.7"
+        },
+        "typing-extensions": {
+            "hashes": [
+                "sha256:a439e7c04b49fec3e5d3e2beaa21755cadbbdc391694e28ccdd36ca4a1408f8c",
+                "sha256:e6c81219bd689f51865d9e372991c540bda33a0379d5573cddb9a3a23f7caaef"
+            ],
+            "markers": "python_version >= '3.8'",
+            "version": "==4.13.2"
+        },
+        "xclienttransaction": {
+            "file": "https://github.com/python273/XClientTransaction/archive/37c675c96a045cf7db5fa6b87a87fa28463ccaec.zip",
+            "markers": "python_version >= '3'"
         }
     },
     "develop": {}
