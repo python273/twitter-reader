@@ -48,10 +48,12 @@ async function updateColorScroll(data) {
 }
 $: { updateColorScroll(data) }
 
-function collapse(event, index) {
-  let comment = data[index]
+function collapse(event, comment) {
+  let index = data.findIndex(item => item.id === comment.id)
   let newValue = !comment.collapsed
   comment.collapsed = newValue
+  data = data
+  if (index === -1) return  // quoted
 
   let depth = comment.depth
   for (index++; index < data.length; index++) {
@@ -318,8 +320,14 @@ const convertScrapedTo = (origT, usersById) => {
     obj.parts = []
   }
 
-  if (origT._quoted) {  // quoted tweet
-    obj._quoted = convertScrapedTo(origT._quoted, usersById)
+  if (origT.quoted_status_result) {
+    origT.quoted_status_result.result._parts = [{...origT.quoted_status_result.result}]
+    obj.quotedTweet = convertScrapedTo(origT.quoted_status_result.result, usersById)
+    obj.quotedTweet._isQuoted = true
+  }
+
+  if (origT._quoted) {  // as in replied to
+    obj.repliedTweet = convertScrapedTo(origT._quoted, usersById)
   }
 
   return obj
@@ -402,6 +410,154 @@ onMount(fetchData)
 <div class="thread-container">
 <div class="comments">
 
+{#snippet renderComment(c)}
+  <div id="comment-{c.id}"
+    class='comment'
+    class:comment-top-level={c.depth === 0}
+    class:comment-blocked={c.collapsed && c.user.rating < -10}
+    class:comment-quoted={c._isQuoted}
+  >
+    <div class="comment-header narrator-skip">
+      <Username data={c.user} color={c.byColor} bgColor={c.byBgColor}/>
+      {#if c.isOP}<div class="op">OP</div>{/if}
+      <span class="date meta-gray" title={c.formattedTime}>{c.timeAgo}</span>
+
+      <button class="btn-text" on:click={(e) => collapse(e, c)} title="collapse">
+        {#if c.collapsed}[+]{:else}[-]{/if}
+      </button>
+      <button class="btn-text" on:click={() => handlePlayComment(c.id)} title="text-to-speech">
+        {#if currentlyReading === c.id}■&#xFE0E;{:else}▶&#xFE0E;{/if}
+      </button>
+
+      <div class="meta-gray"><UserNote id={c.user.id} /></div>
+
+      <div class="ml-auto"></div>
+
+      <div class="meta-gray">
+        {#if c.favoriteCount}♥{c.favoriteCount}{/if}
+        {#if c.retweetCount} <span style="font-weight: 800;">↻</span>{c.retweetCount}{/if}
+        {#if c.quoteCount} ❝{c.quoteCount}{/if}
+      </div>
+
+      <a class="no-vs" href={`https://x.com/${c.username}/status/${c.id}`} title="reply">
+        &#10149;&#xFE0E;
+      </a>
+    </div>
+
+    <div class="comment-content" class:d-none={c.collapsed} class:narrator-skip={c.collapsed}>
+      {#each c.parts as p, pi (p.id)}
+        {#if pi > 0}
+          <div class="comment-header tweet-splitter narrator-skip">
+            <div style="flex-grow: 1;"><hr></div>
+            <span class="date meta-gray" title={p.formattedTime}>{p.timeAgo}</span>
+            <div class="meta-gray">
+              {#if p.favoriteCount}♥{p.favoriteCount}{/if}
+              {#if p.retweetCount} <span style="font-weight: 800;">↻</span>{p.retweetCount}{/if}
+              {#if p.quoteCount} ❝{p.quoteCount}{/if}
+            </div>
+            <div>
+              <a class="no-vs" href={`https://x.com/${p.username}/status/${p.id}`} title="reply">
+                &#10149;&#xFE0E;
+              </a>
+            </div>
+          </div>
+        {/if}
+
+        {#if p.repliedTweet}
+          <div class="quote narrator-skip">
+            <p
+              class="quote-single-line"
+              title={p.repliedTweet.visibleRawText}
+            >
+              {p.repliedTweet.visibleRawText}
+            </p>
+          </div>
+        {/if}
+
+        {#each p.text as paragraph, paragraph_index}
+          <p
+            class="narrator-paragraph"
+            class:quote={paragraph.type === 'quote'}
+            class:p-last-line={paragraph_index == (p.text.length-1)}
+          >
+            {#each paragraph as part}
+              {#if part._type === 'text'}
+                {#each part.text as line, line_i}
+                  {line}{#if line_i < (part.text.length-1)}<span style="display: none;" data-narrator-pause>&nbsp;.&nbsp;</span><br/>{/if}
+                {/each}
+              {:else if part._type === 'user_mention'}
+                <a href={`https://x.com/${part.username}`}>{part.text}</a>
+              {:else if part._type === 'url'}
+                <a href={part.url}>{part.urldecoded}</a>
+              {:else if part._type === 'hashtag'}
+                <a href={`https://x.com/hashtag/${part.hashtag}`}>{part.text}</a>
+              {:else if part._type === 'rich'}
+                <span class={part.richtext_types.map(t => 'rich-' + t.toLowerCase()).join(' ')}>
+                  {part.text}
+                </span>
+              {/if}
+            {/each}
+          </p>
+        {/each}
+
+        {#if p.quotedTweet}
+          <div class="quote">
+            {@render renderComment(p.quotedTweet)}
+          </div>
+        {/if}
+
+        {#if p.media}
+        <div>
+          {#each p.media as m, mi (m.id_str)}
+            {#if m.type === "photo"}
+              <a href={m['media_url_https']}>
+                <img
+                  class="attach"
+                  alt=''
+                  src={m['media_url_https']}
+                  width={m['original_info']['width']}
+                  height={m['original_info']['height']}
+                  loading="lazy"
+                />
+              </a>
+            {:else if m.type === "video"}
+              <!-- svelte-ignore a11y-media-has-caption -->
+              <video
+                class="attach"
+                controls
+                preload="metadata"
+                width={m['original_info']['width']}
+                height={m['original_info']['height']}
+              >
+                {#each m.video_info.variants.reverse() as v}
+                  <source src={v.url} type={v.content_type}>
+                {/each}
+              </video>
+            {:else if m.type === "animated_gif"}
+              <!-- svelte-ignore a11y-media-has-caption -->
+              <video
+                class="attach-gif"
+                controls
+                loop
+                preload="metadata"
+                width={m['original_info']['width']}
+                height={m['original_info']['height']}
+              >
+                {#each m.video_info.variants.reverse() as v}
+                  <source src={v.url} type={v.content_type}>
+                {/each}
+              </video>
+            {:else}
+              <pre>{JSON.stringify(m)}</pre>
+            {/if}
+          {/each}
+        </div>
+        {/if}
+      {/each}
+    </div>
+  </div>
+{/snippet}
+
 {#each data as c, i}
   <div class='comment-with-pad'>
     {#each {length: c.depth} as _, i}
@@ -414,150 +570,7 @@ onMount(fetchData)
         {/if}
       </div>
     {/each}
-
-    <div id="comment-{c.id}"
-      class='comment'
-      class:comment-top-level="{c.depth === 0}"
-      class:comment-blocked="{c.collapsed && c.user.rating < -10}"
-    >
-      <div class="comment-header">
-        <Username data={c.user} color={c.byColor} bgColor={c.byBgColor}/>
-        {#if c.isOP}<div class="op">OP</div>{/if}
-        <span class="date meta-gray" title="{c.formattedTime}">{c.timeAgo}</span>
-
-        <button class="btn-text" on:click={(e) => collapse(e, i)} title="collapse">
-          {#if c.collapsed}[+]{:else}[-]{/if}
-        </button>
-        <button class="btn-text" on:click={() => handlePlayComment(c.id)} title="text-to-speech">
-          {#if currentlyReading === c.id}■&#xFE0E;{:else}▶&#xFE0E;{/if}
-        </button>
-
-        <div class="meta-gray"><UserNote id={c.user.id} /></div>
-
-        <div class="ml-auto"></div>
-
-        <div class="meta-gray">
-          {#if c.favoriteCount}♥{c.favoriteCount}{/if}
-          {#if c.retweetCount} <span style="font-weight: 800;">↻</span>{c.retweetCount}{/if}
-          {#if c.quoteCount} ❝{c.quoteCount}{/if}
-        </div>
-
-        <a class="no-vs" href={`https://x.com/${c.username}/status/${c.id}`} title="reply">
-          &#10149;&#xFE0E;
-        </a>
-      </div>
-
-      <div class="comment-content" class:d-none="{c.collapsed}" class:narrator-skip="{c.collapsed}">
-        {#each c.parts as p, pi (p.id)}
-          {#if pi > 0}
-            <div class="comment-header tweet-splitter narrator-skip">
-              <div style="flex-grow: 1;"><hr></div>
-              <span class="date meta-gray" title="{p.formattedTime}">{p.timeAgo}</span>
-              <div class="meta-gray">
-                {#if p.favoriteCount}♥{p.favoriteCount}{/if}
-                {#if p.retweetCount} <span style="font-weight: 800;">↻</span>{p.retweetCount}{/if}
-                {#if p.quoteCount} ❝{p.quoteCount}{/if}
-              </div>
-              <div>
-                <a class="no-vs" href={`https://x.com/${p.username}/status/${p.id}`} title="reply">
-                  &#10149;&#xFE0E;
-                </a>
-              </div>
-            </div>
-          {/if}
-
-          {#if p._quoted}
-            <div class="quote narrator-skip">
-              <p
-                class="p-last-line quote-single-line"
-                title={p._quoted.visibleRawText}
-              >
-                {p._quoted.visibleRawText}
-              </p>
-            </div>
-          {/if}
-
-          {#each p.text as paragraph, paragraph_index}
-            <p
-              class="narrator-paragraph"
-              class:quote="{paragraph.type === 'quote'}"
-              class:p-last-line="{paragraph_index == (p.text.length-1)}"
-            >
-              {#each paragraph as part}
-                {#if part._type === 'text'}
-                  {#each part.text as line, line_i}
-                    {line}{#if line_i < (part.text.length-1)}<span style="display: none;" data-narrator-pause>&nbsp;.&nbsp;</span><br/>{/if}
-                  {/each}
-                {:else if part._type === 'user_mention'}
-                  <a href={`https://x.com/${part.username}`}>{part.text}</a>
-                {:else if part._type === 'url'}
-                  <a href={part.url}>{part.urldecoded}</a>
-                {:else if part._type === 'hashtag'}
-                  <a href={`https://x.com/hashtag/${part.hashtag}`}>{part.text}</a>
-                {:else if part._type === 'rich'}
-                  <span class={part.richtext_types.map(t => 'rich-' + t.toLowerCase()).join(' ')}>
-                    {part.text}
-                  </span>
-                {/if}
-              {/each}
-            </p>
-          {/each}
-
-          {#if p.quotedId}
-            <div class="narrator-skip"><b style="color: red;">TODO: QUOTED TWEET</b>
-              <a href={`https://x.com/qwe/status/${p.quotedId}`}>click</a></div>
-          {/if}
-
-          {#if p.media}
-          <div>
-            {#each p.media as m, mi (m.id_str)}
-              {#if m.type === "photo"}
-                <a href={m['media_url_https']}>
-                  <img
-                    class="attach"
-                    alt=''
-                    src={m['media_url_https']}
-                    width={m['original_info']['width']}
-                    height={m['original_info']['height']}
-                    loading="lazy"
-                  />
-                </a>
-              {:else if m.type === "video"}
-                <!-- svelte-ignore a11y-media-has-caption -->
-                <video
-                  class="attach"
-                  controls
-                  preload="metadata"
-                  width={m['original_info']['width']}
-                  height={m['original_info']['height']}
-                >
-                  {#each m.video_info.variants.reverse() as v}
-                    <source src={v.url} type={v.content_type}>
-                  {/each}
-                </video>
-              {:else if m.type === "animated_gif"}
-                <!-- svelte-ignore a11y-media-has-caption -->
-                <video
-                  class="attach-gif"
-                  controls
-                  loop
-                  preload="metadata"
-                  width={m['original_info']['width']}
-                  height={m['original_info']['height']}
-                >
-                  {#each m.video_info.variants.reverse() as v}
-                    <source src={v.url} type={v.content_type}>
-                  {/each}
-                </video>
-              {:else}
-                <pre>{JSON.stringify(m)}</pre>
-              {/if}
-            {/each}
-          </div>
-          {/if}
-        {/each}
-      </div>
-    </div>
+    {@render renderComment(c)}
   </div>
 {/each}
 </div>
@@ -703,6 +716,11 @@ p.p-last-line {
   filter: opacity(30%)
 }
 
+.comment-quoted {
+  margin: 0.5em 0em;
+  border: 2px solid var(--text-color);
+}
+
 .comment-header * {
   text-decoration: none;
   white-space: nowrap;
@@ -793,6 +811,7 @@ hr {
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
+  margin: 0;
 }
 
 .attach {
