@@ -501,7 +501,7 @@ onMount(fetchData)
         {/each}
 
         {#if p.quotedTweet}
-          <div class="quote">
+          <div class="">
             {@render renderComment(p.quotedTweet)}
           </div>
         {/if}
@@ -717,8 +717,8 @@ p.p-last-line {
 }
 
 .comment-quoted {
-  margin: 0.5em 0em;
-  border: 2px solid var(--text-color);
+  margin: 0.5em 0 0 0;
+  border: 2px solid var(--brand-color);
 }
 
 .comment-header * {

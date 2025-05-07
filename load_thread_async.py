@@ -363,7 +363,7 @@ async def main():
         print('Create accounts.json with cookies from browser: {"accounts": [{"cookies": {...}}, ...]}')
         exit(1)
 
-    init_trid({'User-Agent': USERAGENT})
+    await init_trid({'User-Agent': USERAGENT})
 
     manager = SessionManager(accounts_data['accounts'])
     worker_args = [(worker_id, manager) for worker_id in range(num_workers)]

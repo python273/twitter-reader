@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "f58569cc17e6cb6386d2a64b53ed2d046d81eea3a83ea6501876cfbeecf215bf"
+            "sha256": "a5e68455dfc2c6a9c9e8af311f5b6ef1bf410668db030a8856c04bb2d9761f40"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -262,8 +262,13 @@
             "version": "==4.13.2"
         },
         "xclienttransaction": {
-            "file": "https://github.com/python273/XClientTransaction/archive/37c675c96a045cf7db5fa6b87a87fa28463ccaec.zip",
-            "markers": "python_version >= '3'"
+            "hashes": [
+                "sha256:2e0280b4e5a43fbac550afa2189b7027f4d3f2ca5ea7471ddcbdba6ca9598216",
+                "sha256:3696943f507cc8aa944c6a8870664fbc2931444a072ee4e07175dad01f87bcfd"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3'",
+            "version": "==1.0.0"
         }
     },
     "develop": {}
