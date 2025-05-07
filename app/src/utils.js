@@ -64,17 +64,3 @@ export function timeSince(dateInput) {
 
   return date.getFullYear() + " " + months[date.getMonth()] + " " + date.getDate()
 }
-
-export function trySetLSValue(key, value) {
-  for (let i = 0; i < 32; i++) {
-    try {
-      localStorage[key] = value
-      return true
-    } catch {
-      continue
-    }
-  }
-  return false
-}
-
-window.trySetLSValue = trySetLSValue

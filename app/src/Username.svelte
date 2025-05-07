@@ -1,5 +1,5 @@
 <script>
-import { timeSince, trySetLSValue } from "./utils"
+import { timeSince } from "./utils"
 import Portal from './Portal.svelte'
 
 export let data
@@ -67,7 +67,7 @@ window.addEventListener('c-update-user-rating', (e) => {
 
 const updateRating = (diff) => {
   const current = (parseInt(localStorage[userKey], 10) || 0)
-  trySetLSValue(userKey, current + diff)
+  localStorage[userKey] = current + diff
 
   const event = new Event('c-update-user-rating')
   event.key = userKey

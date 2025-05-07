@@ -1,23 +1,6 @@
 <script>
 import Thread from './Thread.svelte'
-import { trySetLSValue } from './utils'
-
-if (!("dark-theme" in localStorage)) {
-  const val = (
-    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-  ) ? 1 : 0
-  trySetLSValue("dark-theme", val)
-}
-
-let darkTheme = localStorage["dark-theme"] === "1"
-$: {
-  trySetLSValue("dark-theme", darkTheme ? 1 : 0)
-}
-
-window.addEventListener('storage', (event) => {
-  if (event.key !== "dark-theme") return
-  darkTheme = localStorage["dark-theme"] === "1"
-})
+import { themeStore } from './themeStore.js'
 
 let page = 'thread'
 let props = {}
@@ -38,7 +21,7 @@ window.addEventListener("hashchange", () => {
 }, false)
 </script>
 
-{#if !darkTheme}
+{#if !$themeStore.isDark}
 <style>
   :root {
     --bg-color: #ecedee;
@@ -72,13 +55,18 @@ window.addEventListener("hashchange", () => {
 
   <div class='ml-auto'></div>
   <div class="settings">
-    <input
-    class="c-pointer"
-      id="dark-theme-checkbox"
-      type="checkbox" bind:checked={darkTheme}
-      title="dark theme"
-    />
-    <label for="dark-theme-checkbox" class="c-pointer">☾</label>
+    <a
+      class="settings-link no-vs"
+      href="#settings"
+      title="settings"
+    >settings</a>
+    <button onclick={themeStore.toggle}>
+      {#if $themeStore.theme === 'system'}
+        light/dark
+      {:else}
+        {$themeStore.theme}
+      {/if}
+    </button>
   </div>
 </div>
 
