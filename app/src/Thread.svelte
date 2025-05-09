@@ -147,33 +147,52 @@ function unescapeHtmlEntities(str) {
   return str.replace(reHtmlEntities, (m, c) => htmlEntities[c])
 }
 
+function convertRichtextTagIndices(originalString, tags) {
+  // UTF-16 code units -> Unicode code point
+  // "😊".length  == 2
+  // Array.from("😊").length == 1
+  const out = []
+  for (const tag of tags) {
+    out.push({...tag, indices: [
+      Array.from(originalString.substring(0, tag.from_index)).length,
+      Array.from(originalString.substring(0, tag.to_index)).length
+    ]})
+  }
+  return out
+}
+
 function parseTextEntities(origT) {
   // Parse tweet entities and split text to paragraphs
   const t = origT.legacy
 
   let text
   let entities
-  let richtext_tags
-  let [displayA, displayB] = [null, null]
+  let richtextTags
+  let [displayA, displayB] = [0, 0]
 
   const noteTweet = origT?.note_tweet?.note_tweet_results?.result
   if (noteTweet) {
     text = Array.from(noteTweet['text'])
     entities = noteTweet['entity_set']
     ;[displayA, displayB] = [0, text.length]
-    richtext_tags = noteTweet?.richtext?.richtext_tags || []
+    // Seems like `richtext_tags` uses string.slice indexing,
+    // and entities Array.from(string).slice indexing
+    richtextTags = convertRichtextTagIndices(
+      noteTweet['text'],
+      noteTweet?.richtext?.richtext_tags || []
+    )
   } else {
     text = Array.from(t['full_text'])
     entities = t.entities
     ;[displayA, displayB] = t['display_text_range']
-    richtext_tags = []
+    richtextTags = []
   }
 
   const allEntities = [
     ...entities.user_mentions.map(i => ({...i, _type: 'user_mention'})),
     ...entities.urls.map(i => ({...i, _type: 'url'})),
     ...entities.hashtags.map(i => ({...i, _type: 'hashtag'})),
-    ...richtext_tags.map(i => ({...i, indices: [i.from_index, i.to_index], _type: 'rich'})),
+    ...richtextTags.map(i => ({...i, _type: 'rich'})),
     // ...entities.symbols.map(i => ({...i, _type: 'symbol'})),
   ]
 
@@ -192,7 +211,7 @@ function parseTextEntities(origT) {
     if (lastIndex < a) {
       const textParagraphs = text.slice(lastIndex, a).join('').split(/\n{2,}/g)
 
-      for (const i in textParagraphs) {
+      for (let i = 0; i < textParagraphs.length; i++) {
         if (i > 0) {
           paragraphs.push(currentParagraph)
           currentParagraph = []
@@ -273,7 +292,6 @@ const convertScrapedTo = (origT, usersById) => {
     || username == 'sendvidbot'
     || username == 'memdotai'
     || username == 'pikaso_me'
-    || (visibleText.match(/metamask/i) && visibleText.match(/gmail.com/i))
     || visibleText.match(/@threadreaderapp/)
     || visibleText.match(/@readwise/)
     || visibleText.match(/@NotionAddon/)
@@ -281,7 +299,6 @@ const convertScrapedTo = (origT, usersById) => {
     || visibleText.match(/@sendvidbot/)
     || visibleText.match(/@memdotai/)
     || visibleText.match(/@pikaso_me/)
-    || text.some(p => p.some(i => i._type === 'url' && i.url.match(/\/t\.me\//)))
   )
 
   const obj = {
@@ -312,6 +329,9 @@ const convertScrapedTo = (origT, usersById) => {
     visibleRawText: visibleText,
 
     media,
+    parts: [],
+    quotedTweet: null,
+    repliedTweet: null,
   }
 
   if (origT._parts) {  // thread tweets group
