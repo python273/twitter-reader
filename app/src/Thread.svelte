@@ -4,6 +4,7 @@ import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils'
 import { Narrator } from './narrator'
 import Username from './Username.svelte'
 import UserNote from './UserNote.svelte'
+import Article from './Article.svelte';
 
 
 function getUsernameColor(username) {
@@ -127,6 +128,9 @@ export let threadId
 let usersById = {}
 let opTweet = {}
 let data = []
+$: {
+  window._data = data;
+}
 
 window.addEventListener('c-update-user-rating', (e) => {
   if (!(e.prevRating >= -10 && e.newRating < -10)) return
@@ -299,13 +303,14 @@ const convertScrapedTo = (origT, usersById) => {
     || visibleText.match(/@sendvidbot/)
     || visibleText.match(/@memdotai/)
     || visibleText.match(/@pikaso_me/)
+    || visibleText.match(/@grok/)
   )
 
   const obj = {
     // pad: [],
     depth: origT._depth,
 
-    _t: t,
+    _t: origT,
     id: t.id_str,
 
     user: u,
@@ -334,15 +339,21 @@ const convertScrapedTo = (origT, usersById) => {
     repliedTweet: null,
   }
 
+  if (origT.article) {
+    obj.article = origT.article.article_results.result;
+  }
+
   if (origT._parts) {  // thread tweets group
     obj.parts = origT._parts.map(i => convertScrapedTo(i, usersById))
   } else {
     obj.parts = []
   }
 
-  if (origT.quoted_status_result) {
-    origT.quoted_status_result.result._parts = [{...origT.quoted_status_result.result}]
-    obj.quotedTweet = convertScrapedTo(origT.quoted_status_result.result, usersById)
+  if (origT?.quoted_status_result?.result) {
+    let quotedTweet = origT?.quoted_status_result?.result;
+    if (quotedTweet['__typename'] === 'TweetWithVisibilityResults') quotedTweet = quotedTweet.tweet;
+    quotedTweet._parts = [{...quotedTweet}]
+    obj.quotedTweet = convertScrapedTo(quotedTweet, usersById)
     obj.quotedTweet._isQuoted = true
   }
 
@@ -465,6 +476,9 @@ onMount(fetchData)
     </div>
 
     <div class="comment-content" class:d-none={c.collapsed} class:narrator-skip={c.collapsed}>
+      {#if c.article}
+        <Article article={c.article} />
+      {/if}
       {#each c.parts as p, pi (p.id)}
         {#if pi > 0}
           <div class="comment-header tweet-splitter narrator-skip">

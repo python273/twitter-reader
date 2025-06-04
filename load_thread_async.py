@@ -89,6 +89,10 @@ async def load_tweet(session, tweet_id, cursor):
         headers=headers,
         timeout=20.0,
     )
+    if r.status_code == 404:
+        print('Got 404, request signature failed!')
+        raise RateLimitError(datetime.now(UTC) + timedelta(seconds=3))
+
     if r.status_code == 429:  # ratelimit
         print(r.headers)
         try:
