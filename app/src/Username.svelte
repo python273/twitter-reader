@@ -159,7 +159,7 @@ const togglePopup = () => {
 .username {
   text-decoration: none;
   font-weight: 600;
-  border-radius: 4px 0 4px 0;
+  border-radius: 6px 0 6px 0;
   padding: 1px 4px 1px 4px;
   line-height: 1.1;
 

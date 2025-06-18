@@ -4,7 +4,8 @@ import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils'
 import { Narrator } from './narrator'
 import Username from './Username.svelte'
 import UserNote from './UserNote.svelte'
-import Article from './Article.svelte';
+import Article from './Article.svelte'
+import ThreadHotkeys from './ThreadHotkeys.svelte'
 
 
 function getUsernameColor(username) {
@@ -129,7 +130,8 @@ let usersById = {}
 let opTweet = {}
 let data = []
 $: {
-  window._data = data;
+  window._data = data
+  window._usersById = usersById
 }
 
 window.addEventListener('c-update-user-rating', (e) => {
@@ -323,6 +325,7 @@ const convertScrapedTo = (origT, usersById) => {
     favoriteCount: t.favorite_count,
     quoteCount: t.quote_count,
     retweetCount: t.retweet_count,
+    replyCount: t.reply_count,
 
     formattedTime: date.toLocaleString("en-US"),
     timeAgo: timeSince(date),
@@ -340,7 +343,7 @@ const convertScrapedTo = (origT, usersById) => {
   }
 
   if (origT.article) {
-    obj.article = origT.article.article_results.result;
+    obj.article = origT.article.article_results.result
   }
 
   if (origT._parts) {  // thread tweets group
@@ -350,11 +353,11 @@ const convertScrapedTo = (origT, usersById) => {
   }
 
   if (origT?.quoted_status_result?.result) {
-    let quotedTweet = origT?.quoted_status_result?.result;
-    if (quotedTweet['__typename'] === 'TweetWithVisibilityResults') quotedTweet = quotedTweet.tweet;
+    let quotedTweet = origT?.quoted_status_result?.result
+    if (quotedTweet['__typename'] === 'TweetWithVisibilityResults') quotedTweet = quotedTweet.tweet
     quotedTweet._parts = [{...quotedTweet}]
     obj.quotedTweet = convertScrapedTo(quotedTweet, usersById)
-    obj.quotedTweet._isQuoted = true
+    obj.quotedTweet._isQuoted = obj.id
   }
 
   if (origT._quoted) {  // as in replied to
@@ -373,9 +376,10 @@ const fetchData = async () => {
     usersById[u.rest_id] = {
       id: u.rest_id,
       rating: parseInt(localStorage[`ur-${u.rest_id}`], 10),
-      createdAt: new Date(u.legacy.created_at),
-      username: u.legacy.screen_name,
-      name: u.legacy.name,
+      createdAt: new Date(u.legacy.created_at || u.core.created_at),
+      username: u.legacy.screen_name || u.core.screen_name,
+      name: u.legacy.name || u.core.name,
+      avatarUrl: u.legacy?.profile_image_url_https || u.avatar?.image_url,
 
       description: u.legacy.description,
       location: u.legacy.location,
@@ -441,12 +445,16 @@ onMount(fetchData)
 <div class="thread-container">
 <div class="comments">
 
+<ThreadHotkeys {data}/>
+
 {#snippet renderComment(c)}
-  <div id="comment-{c.id}"
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+  <div id="comment-{c.id}{c._isQuoted ? `-quoted-${c._isQuoted}` : ''}"
     class='comment'
     class:comment-top-level={c.depth === 0}
     class:comment-blocked={c.collapsed && c.user.rating < -10}
     class:comment-quoted={c._isQuoted}
+    tabindex={!c._isQuoted ? 0 : undefined}
   >
     <div class="comment-header narrator-skip">
       <Username data={c.user} color={c.byColor} bgColor={c.byBgColor}/>
@@ -468,9 +476,10 @@ onMount(fetchData)
         {#if c.favoriteCount}♥{c.favoriteCount}{/if}
         {#if c.retweetCount} <span style="font-weight: 800;">↻</span>{c.retweetCount}{/if}
         {#if c.quoteCount} ❝{c.quoteCount}{/if}
+        {#if c.replyCount} &#10149;&#xFE0E;{c.replyCount}{/if}
       </div>
 
-      <a class="no-vs" href={`https://x.com/${c.username}/status/${c.id}`} title="reply">
+      <a href={`https://x.com/${c.username}/status/${c.id}`} title="reply">
         &#10149;&#xFE0E;
       </a>
     </div>
@@ -488,9 +497,10 @@ onMount(fetchData)
               {#if p.favoriteCount}♥{p.favoriteCount}{/if}
               {#if p.retweetCount} <span style="font-weight: 800;">↻</span>{p.retweetCount}{/if}
               {#if p.quoteCount} ❝{p.quoteCount}{/if}
+              {#if p.replyCount} &#10149;&#xFE0E;{p.replyCount}{/if}
             </div>
             <div>
-              <a class="no-vs" href={`https://x.com/${p.username}/status/${p.id}`} title="reply">
+              <a href={`https://x.com/${p.username}/status/${p.id}`} title="reply">
                 &#10149;&#xFE0E;
               </a>
             </div>
@@ -594,6 +604,11 @@ onMount(fetchData)
 
 {#each data as c, i}
   <div class='comment-with-pad'>
+    {#if c.user.avatarUrl}
+      <img class="avatar" src={c.user.avatarUrl} loading="lazy" alt=""/>
+    {:else}
+      <div class="avatar"></div>
+    {/if}
     {#each {length: c.depth} as _, i}
       <div class='pad' style="background: {c.pad[i].byBgColor};">
         {#if c.pad[i].sameUser}
@@ -693,6 +708,14 @@ p.p-last-line {
   }
 }
 
+.avatar {
+  width: 1.8em;
+  height: 1.8em;
+  border-radius: 50%;
+  margin: 7px 6px 0 0;
+  background-color: var(--meta-color);
+}
+
 .pad {
   margin-right: 3px;
   width: 5px;
@@ -735,6 +758,10 @@ p.p-last-line {
   box-shadow: 0px 1px 6px #00000047;
 
   /* overflow: hidden; */
+}
+
+.comment:focus, .comment:focus-visible {
+  outline: 1px auto;
 }
 
 .comment-top-level {

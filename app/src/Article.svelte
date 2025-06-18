@@ -1,99 +1,99 @@
 <script>
-export let article = {};
-let contentState = article.content_state || { blocks: [], entityMap: [] };
+export let article = {}
+let contentState = article.content_state || { blocks: [], entityMap: [] }
 
 const styleMap = {
   'Bold': 'font-weight:bold;',
   'Italic': 'font-style:italic;',
   'Code': 'font-family:monospace;background-color:#f0f0f0;padding:0.1em 0.3em;border-radius:3px;'
-};
+}
 
 function getSegmentStyleString(segment) {
-  return segment.styles.map(s => styleMap[s]).filter(Boolean).join('');
+  return segment.styles.map(s => styleMap[s]).filter(Boolean).join('')
 }
 
 const headerMap = {
   'header-one': 'h1', 'header-two': 'h2', 'header-three': 'h3',
   'header-four': 'h4', 'header-five': 'h5', 'header-six': 'h6'
-};
+}
 
 function preprocessBlock(block, entityMapArray) {
   if (block.type === 'atomic') {
-    const entityRange = block.entityRanges?.[0];
+    const entityRange = block.entityRanges?.[0]
     const entity = entityRange
       ? (entityMapArray.find(e => e.key === String(entityRange.key)))?.value
-      : null;
-    return [{ type: 'atomic', entity }];
+      : null
+    return [{ type: 'atomic', entity }]
   }
-  const text = block.text || "";
+  const text = block.text || ""
   const allRangesPoints = [
     ...(block.inlineStyleRanges ?? []).flatMap(r => [r.offset, r.offset + r.length]),
     ...(block.entityRanges ?? []).flatMap(r => [r.offset, r.offset + r.length]),
     ...(block.data?.mentions ?? []).flatMap(m => [m.fromIndex, m.toIndex])
-  ];
+  ]
   const sortedUniquePoints = [...new Set([0, text.length, ...allRangesPoints])]
     .filter(p => p >= 0 && p <= text.length)
-    .sort((a, b) => a - b);
+    .sort((a, b) => a - b)
 
-  const segments = [];
+  const segments = []
   for (let i = 0; i < sortedUniquePoints.length - 1; i++) {
-    const start = sortedUniquePoints[i];
-    const end = sortedUniquePoints[i + 1];
-    if (start >= end) continue;
+    const start = sortedUniquePoints[i]
+    const end = sortedUniquePoints[i + 1]
+    if (start >= end) continue
 
-    const segmentText = text.substring(start, end);
+    const segmentText = text.substring(start, end)
     const activeStyles = (block.inlineStyleRanges ?? [])
       .filter(r => r.offset <= start && (r.offset + r.length) >= end)
-      .map(r => r.style);
+      .map(r => r.style)
 
-    const activeEntityRange = (block.entityRanges ?? []).find(r => r.offset <= start && (r.offset + r.length) >= end);
+    const activeEntityRange = (block.entityRanges ?? []).find(r => r.offset <= start && (r.offset + r.length) >= end)
     const entity = activeEntityRange
       ? (entityMapArray.find(e => e.key === String(activeEntityRange.key)))?.value
-      : null;
+      : null
 
-    const currentMention = (block.data?.mentions ?? []).find(m => m.fromIndex === start && m.toIndex === end && segmentText.startsWith('@') && m.text === segmentText.substring(1));
-    const mentionData = currentMention ? currentMention.text : null;
+    const currentMention = (block.data?.mentions ?? []).find(m => m.fromIndex === start && m.toIndex === end && segmentText.startsWith('@') && m.text === segmentText.substring(1))
+    const mentionData = currentMention ? currentMention.text : null
 
-    segments.push({ text: segmentText, styles: activeStyles, entity, mention: mentionData });
+    segments.push({ text: segmentText, styles: activeStyles, entity, mention: mentionData })
   }
-  return segments;
+  return segments
 }
 
 function getMediaUrl(mediaId) {
-  const media = article.media_entities.find(m => m.media_id === mediaId);
-  return media?.media_info?.original_img_url;
+  const media = article.media_entities.find(m => m.media_id === mediaId)
+  return media?.media_info?.original_img_url
 }
 
 $: processedArticleBlocks = contentState.blocks.map(block => ({
   key: block.key,
   type: block.type,
   segments: preprocessBlock(block, contentState.entityMap),
-}));
+}))
 
 $: groupedBlocks = (() => {
-  const result = [];
-  let currentList = null;
+  const result = []
+  let currentList = null
   for (const block of processedArticleBlocks) {
-    const isListItem = block.type === 'ordered-list-item' || block.type === 'unordered-list-item';
+    const isListItem = block.type === 'ordered-list-item' || block.type === 'unordered-list-item'
     if (isListItem) {
-      const listType = block.type === 'ordered-list-item' ? 'ol' : 'ul';
+      const listType = block.type === 'ordered-list-item' ? 'ol' : 'ul'
       if (currentList && currentList.listType === listType) {
-        currentList.items.push(block);
+        currentList.items.push(block)
       } else {
-        if (currentList) result.push(currentList);
-        currentList = { type: 'list', listType, items: [block], key: block.key + '-listwrapper' };
+        if (currentList) result.push(currentList)
+        currentList = { type: 'list', listType, items: [block], key: block.key + '-listwrapper' }
       }
     } else {
       if (currentList) {
-        result.push(currentList);
-        currentList = null;
+        result.push(currentList)
+        currentList = null
       }
-      result.push(block);
+      result.push(block)
     }
   }
-  if (currentList) result.push(currentList);
-  return result;
-})();
+  if (currentList) result.push(currentList)
+  return result
+})()
 </script>
 
 {#if article.cover_media}
