@@ -1,11 +1,11 @@
 <script>
-import { onDestroy, onMount, tick } from 'svelte'
+import { onMount, tick } from 'svelte'
 import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils'
-import { Narrator } from './narrator'
 import Username from './Username.svelte'
 import UserNote from './UserNote.svelte'
 import Article from './Article.svelte'
 import ThreadHotkeys from './ThreadHotkeys.svelte'
+import ThreadNarrator from './ThreadNarrator.svelte'
 
 
 function getUsernameColor(username) {
@@ -67,61 +67,8 @@ function collapse(event, comment) {
 }
 
 let currentlyReading = null
-let narrator = null
 let narratorPlaying = false
-
-onDestroy(() => {
-  if (narrator) narrator.stop()
-})
-
-async function handlePlayComment(commentId=null) {
-  // null - reuse current narrator (global controls)
-  // same id as reading - pause/continue
-  // new id - stop current, start new
-  console.log('handlePlayComment', commentId, currentlyReading)
-  if (narrator?.speaking) {
-    narrator.stop()
-    narratorPlaying = false
-    if (commentId === null || currentlyReading === commentId) return
-  }
-
-  let currentNarrator
-  if (commentId === null) {
-    currentNarrator = narrator
-  } else {
-    const el = document.querySelector(`#comment-${commentId} .comment-content`)
-    currentNarrator = new Narrator(
-      window,
-      el,
-      new Promise((resolve) => {resolve("en-US")})
-    )
-    narrator = currentNarrator
-    currentlyReading = commentId
-  }
-  const narratorRate = parseFloat(localStorage["cfg-narrator-rate"] || 1.2)
-  narratorPlaying = true
-  await currentNarrator.start({rate: narratorRate})
-  if (narrator !== currentNarrator) return
-
-  narratorPlaying = false
-
-  if (!currentNarrator._stopped) {  // if stopped by itself, go to the next comment
-    console.log('next comment')
-    const currentCommentIndex = data.findIndex(c => c.id === currentlyReading)
-    if (currentCommentIndex < data.length - 1) {
-      handlePlayComment(data[currentCommentIndex + 1].id)
-    }
-  }
-}
-
-
-function handleNarratorPrev(e) {
-  narrator.skipPrevious()
-}
-
-function handleNarratorNext(e) {
-  narrator.skipNext()
-}
+let threadNarrator
 
 // ###################################################################################
 
@@ -392,30 +339,23 @@ const fetchData = async () => {
   const tempTree = thread['tree'].map(t => convertScrapedTo(t, usersById))
   window.document.title = `${tempTree[0].visibleRawText} | Twitter Reader`
 
-  let tweetStack = []
-  let prevDepth = 0
+  // This stack holds information about the ancestors of the current tweet.
+  // It's indexed by the original depth (1-based), so we can think of
+  // ancestorStack[d] as the info for the tweet at depth d in the current path.
+  const ancestorStack = []
 
-  for(let t of tempTree) {
-    t.pad = []
-    for(let i = 1; i < t.depth; i++) {
-      t.pad.push({
-        byBgColor: tweetStack[i].byBgColor,
-        sameUser: tweetStack[i].username === t.username,
-      })
-    }
+  for(const t of tempTree) {
+    const originalDepth = t.depth
+    ancestorStack.length = originalDepth
+    t.pad = ancestorStack.slice(1).map(ancestor => ({
+      byBgColor: ancestor.byBgColor,
+      sameUser: ancestor.username === t.username,
+    }))
 
-    if (t.depth == prevDepth) {
-      tweetStack[t.depth] = t  // replace if at the same level
-    } else if (t.depth > prevDepth) {
-      tweetStack.push(t)  // push if deeper
-    } else if (t.depth < prevDepth) {
-      tweetStack.length = t.depth  // truncate to depth
-      tweetStack.push(t) // push
-    }
+    ancestorStack[originalDepth] = { byBgColor: t.byBgColor, username: t.username }
 
-    prevDepth = t.depth
-
-    t.depth = Math.max(0, t.depth - 1)  // remove main tweet's pad
+    // The rendered depth is 0-based (top-level tweets have no indent).
+    t.depth = Math.max(0, originalDepth - 1)
   }
 
   data = tempTree
@@ -426,15 +366,7 @@ onMount(fetchData)
 
 {#if data.length}
 <div class="thread-page">
-  {#if narrator}
-    <div class="global-narrator-controls">
-      <button class="btn-text" on:click={() => handlePlayComment()} title="play/pause">
-        {#if narratorPlaying}⏸︎&#xFE0E;{:else}▶&#xFE0E;{/if}
-      </button>
-      <button class="btn-text" on:click={handleNarratorPrev} title="previous">⭠</button>
-      <button class="btn-text" on:click={handleNarratorNext} title="next">⭢</button>
-    </div>
-  {/if}
+  <ThreadNarrator bind:this={threadNarrator} {data} bind:currentlyReading bind:narratorPlaying />
 
   <div class="colors-scroll">
     {#each colorScroll as c, i}
@@ -464,8 +396,8 @@ onMount(fetchData)
       <button class="btn-text" on:click={(e) => collapse(e, c)} title="collapse">
         {#if c.collapsed}[+]{:else}[-]{/if}
       </button>
-      <button class="btn-text" on:click={() => handlePlayComment(c.id)} title="text-to-speech">
-        {#if currentlyReading === c.id}■&#xFE0E;{:else}▶&#xFE0E;{/if}
+      <button class="btn-text" on:click={() => threadNarrator.playComment(c.id)} title="text-to-speech">
+        {#if currentlyReading === c.id && narratorPlaying}■&#xFE0E;{:else}▶&#xFE0E;{/if}
       </button>
 
       <div class="meta-gray"><UserNote id={c.user.id} /></div>
@@ -569,9 +501,10 @@ onMount(fetchData)
               <video
                 class="attach"
                 controls
-                preload="metadata"
+                preload="none"
                 width={m['original_info']['width']}
                 height={m['original_info']['height']}
+                poster={m['media_url_https']}
               >
                 {#each m.video_info.variants.reverse() as v}
                   <source src={v.url} type={v.content_type}>
@@ -604,10 +537,14 @@ onMount(fetchData)
 
 {#each data as c, i}
   <div class='comment-with-pad'>
-    {#if c.user.avatarUrl}
-      <img class="avatar" src={c.user.avatarUrl} loading="lazy" alt=""/>
+    {#if !c.collapsed}
+      {#if c.user.avatarUrl}
+        <img class="avatar" src={c.user.avatarUrl} loading="lazy" alt=""/>
+      {:else}
+        <div class="avatar"></div>
+      {/if}
     {:else}
-      <div class="avatar"></div>
+      <div style="margin-left: calc(1.8em + 6px)"></div>
     {/if}
     {#each {length: c.depth} as _, i}
       <div class='pad' style="background: {c.pad[i].byBgColor};">
@@ -647,9 +584,9 @@ p.p-last-line {
 
 /* p {
   background: repeating-linear-gradient(
-    #0000, 
-    #0000 1.2em, 
-    #0000000f 1.2em, 
+    #0000,
+    #0000 1.2em,
+    #0000000f 1.2em,
     #0000000f 2.4em
   );
 } */
@@ -822,7 +759,7 @@ p.p-last-line {
 .comment-content {
   display: flex;
   flex-direction: column;
-  margin: 0 5px 5px 5px;
+  margin: 0 0.4em 5px 0.4em;
   overflow: auto hidden;
 }
 
@@ -907,18 +844,5 @@ hr {
 }
 .rich-bold {
   font-weight: bold;
-}
-.global-narrator-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  position: fixed;
-  top: 50vh;
-  right: 2rem;
-  background: #fff;
-  padding: 0.5rem;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  z-index: 100;
 }
 </style>

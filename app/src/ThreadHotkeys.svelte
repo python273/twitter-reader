@@ -3,6 +3,17 @@ import { onMount, onDestroy } from 'svelte'
 
 export let data
 
+function focusComment(index) {
+  if (index >= 0 && index < data.length) {
+    const comment = data[index]
+    const el = document.getElementById(`comment-${comment.id}`)
+    if (el) {
+      el.scrollIntoView({ block: 'start', behavior: 'auto' })
+      el.focus({ preventScroll: true, focusVisible: true })
+    }
+  }
+}
+
 function onKeyDown(event) {
   if (event.target.matches('input, textarea, video, [contenteditable]')) {
     return
@@ -26,14 +37,7 @@ function onKeyDown(event) {
       nextIndex = currentIndex - 1
     }
 
-    if (nextIndex >= 0 && nextIndex < data.length) {
-      const nextComment = data[nextIndex]
-      const nextEl = document.getElementById(`comment-${nextComment.id}`)
-      if (nextEl) {
-        nextEl.scrollIntoView({ block: 'start', behavior: 'auto' })
-        nextEl.focus({ preventScroll: true, focusVisible: true })
-      }
-    }
+    focusComment(nextIndex)
   } else if (event.key === 'h') {
     event.preventDefault()
     const currentCommentEl = document.activeElement.closest('.comment')
@@ -48,6 +52,29 @@ function onKeyDown(event) {
       } else {
         window.open(url, '_blank', 'noopener,noreferrer')
       }
+    }
+  } else if (event.key === 'n') {
+    event.preventDefault()
+    const currentCommentEl = document.activeElement.closest('.comment')
+    if (!currentCommentEl) return
+
+    const commentId = currentCommentEl.id.replace('comment-', '')
+    const currentIndex = data.findIndex(c => c.id === commentId)
+    if (currentIndex === -1) return
+
+    const currentComment = data[currentIndex]
+    const currentDepth = currentComment.depth
+
+    let nextIndex = -1
+    for (let i = currentIndex + 1; i < data.length; i++) {
+      if (data[i].depth <= currentDepth) {
+        nextIndex = i
+        break
+      }
+    }
+
+    if (nextIndex !== -1) {
+      focusComment(nextIndex)
     }
   }
 }
