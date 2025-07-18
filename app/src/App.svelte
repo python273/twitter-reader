@@ -27,6 +27,7 @@ window.addEventListener("hashchange", () => {
     --bg-color: #ecedee;
     --text-color: #000;
     --comment-bg-color: #fff;
+    --panel-bg-color: #f7f7f7;
     --meta-color: rgb(94, 126, 142);
     --code-bg-color: #eceef0;
   }
@@ -41,6 +42,7 @@ window.addEventListener("hashchange", () => {
     --bg-color: rgb(24, 20, 18);
     --text-color: rgb(233, 225, 204);
     --comment-bg-color: rgb(55, 45, 40);
+    --panel-bg-color: #241e1b;
     --meta-color: rgb(179, 172, 152);
     --code-bg-color: rgb(70, 56, 50);
   }

@@ -3,6 +3,33 @@ import { onMount, onDestroy } from 'svelte'
 
 export let data
 
+function isPressed(e, combo) {
+  const parts = combo.toLowerCase().split('+')
+  const key = parts.pop()
+  
+  let code
+  switch (key) {
+  case '?': code = 'Slash'; break
+  case 'esc':
+  case 'escape': code = 'Escape'; break
+  case 'enter': code = 'Enter'; break
+  default: code = key.length === 1 ? `Key${key.toUpperCase()}` : key
+  }
+  
+  const wants = {
+    shift: parts.includes('shift'),
+    ctrl: parts.includes('ctrl'),
+    alt: parts.includes('alt'),
+    meta: parts.includes('meta'),
+  }
+  
+  return e.code === code &&
+    e.shiftKey === wants.shift &&
+    e.ctrlKey === wants.ctrl &&
+    e.altKey === wants.alt &&
+    e.metaKey === wants.meta
+}
+
 function focusComment(index) {
   if (index >= 0 && index < data.length) {
     const comment = data[index]
@@ -14,13 +41,14 @@ function focusComment(index) {
   }
 }
 
-function onKeyDown(event) {
-  if (event.target.matches('input, textarea, video, [contenteditable]')) {
+function onKeyDown(e) {
+  if (e.target.matches('input, textarea, video, [contenteditable]')) {
     return
   }
+  const hot = (combo) => isPressed(e, combo)
 
-  if (event.key === 'j' || event.key === 'k') {
-    event.preventDefault()
+  if (hot('j') || hot('k')) {
+    e.preventDefault()
 
     const currentCommentEl = document.activeElement.closest('.comment')
     let currentIndex = -1
@@ -30,16 +58,16 @@ function onKeyDown(event) {
     }
 
     let nextIndex
-    if (event.key === 'j') {
+    if (hot('j')) {
       nextIndex = currentIndex + 1
-    } else if (event.key === 'k') {
+    } else if (hot('k')) {
       if (currentIndex <= 0) return
       nextIndex = currentIndex - 1
     }
 
     focusComment(nextIndex)
-  } else if (event.key === 'h') {
-    event.preventDefault()
+  } else if (hot('h')) {
+    e.preventDefault()
     const currentCommentEl = document.activeElement.closest('.comment')
     if (!currentCommentEl) return
 
@@ -53,8 +81,8 @@ function onKeyDown(event) {
         window.open(url, '_blank', 'noopener,noreferrer')
       }
     }
-  } else if (event.key === 'n') {
-    event.preventDefault()
+  } else if (hot('n')) {
+    e.preventDefault()
     const currentCommentEl = document.activeElement.closest('.comment')
     if (!currentCommentEl) return
 

@@ -69,7 +69,7 @@ def partition_replies_deep(tweets, curr, _thread=None, _replies=None):
     return _thread, _replies
 
 
-def process_replies(tweets, curr, depth=0, tree=None):
+def process_replies(tweets, curr, author_id, depth=0, tree=None):
     if tree is None:
         tree = [] # flat tree (each item has depth value)
 
@@ -81,9 +81,17 @@ def process_replies(tweets, curr, depth=0, tree=None):
     same_author_thread_parts, other_replies = partition_replies_deep(tweets, curr)
     parts.extend(same_author_thread_parts)
 
+    # Sort all replies together. This is important because partition_replies_deep
+    # collects replies from different levels of the same-author-chain, and we want
+    # to process them in a unified order.
+    other_replies.sort(key=lambda t: (
+        -int(t['legacy']['user_id_str'] == author_id),
+        -t['legacy']['favorite_count'],
+        t['rest_id']))
+
     # Each of the "other" replies becomes the root of a new sub-tree.
     for r in other_replies:
-        process_replies(tweets, r, depth + 1, tree)
+        process_replies(tweets, r, author_id, depth + 1, tree)
 
     return tree
 
@@ -115,7 +123,7 @@ def main():
         -t['legacy']['favorite_count'],
         t['rest_id']))
 
-    tree = process_replies(tweets, main_tweet)
+    tree = process_replies(tweets, main_tweet, author_id)
 
     with open(output_path, 'w') as f:
         json.dump(

@@ -685,7 +685,7 @@ p.p-last-line {
   flex-direction: column;
 
   border-radius: 6px;
-  margin: 0 0 4px 0;
+  margin: 3px 0 3px 0;
 
   width: 100%;
   max-width: min(62ch, 100vw);
