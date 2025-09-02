@@ -30,6 +30,7 @@ button {
 
 .d-none { display: none !important; }
 .d-flex { display: flex; }
+.user-select-none { user-select: none; }
 
 .ml-auto {
   margin-left: auto;

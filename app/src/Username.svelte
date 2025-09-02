@@ -197,5 +197,6 @@ const togglePopup = () => {
   display: inline-block;
   font-family: monospace;
   font-weight: 500;
+  user-select: none;
 }
 </style>

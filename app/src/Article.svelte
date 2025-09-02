@@ -155,8 +155,11 @@ $: groupedBlocks = (() => {
             {#if entity.data.caption}<p>{entity.data.caption}</p>{/if}
           </div>
         {/if}
+      {:else if entity.type === 'DIVIDER'}
+        <hr/>
       {:else}
-        <div style="color: red;">unknown entity</div>
+        <div style="color: red;">unknown entity {entity.type}</div>
+        <code><pre>{JSON.stringify(group, null, 2)}</pre></code>
       {/if}
     {/if}
   {:else if group.type === 'unstyled'}

@@ -218,6 +218,10 @@ function parseTextEntities(origT) {
 
 
 const convertScrapedTo = (origT, usersById) => {
+  if (origT['__typename'] !== 'Tweet') {
+    console.log(origT)
+    //throw Error('not tweet?')
+  }
   const t = origT.legacy
   const u = usersById[t.user_id_str] || {}
   const username = u.username
@@ -258,6 +262,7 @@ const convertScrapedTo = (origT, usersById) => {
   const obj = {
     // pad: [],
     depth: origT._depth,
+    info: origT._info,
 
     _t: origT,
     id: t.id_str,
@@ -302,9 +307,11 @@ const convertScrapedTo = (origT, usersById) => {
   if (origT?.quoted_status_result?.result) {
     let quotedTweet = origT?.quoted_status_result?.result
     if (quotedTweet['__typename'] === 'TweetWithVisibilityResults') quotedTweet = quotedTweet.tweet
-    quotedTweet._parts = [{...quotedTweet}]
-    obj.quotedTweet = convertScrapedTo(quotedTweet, usersById)
-    obj.quotedTweet._isQuoted = obj.id
+    if (quotedTweet['__typename'] === 'Tweet') {  // vs TweetTombstone
+      quotedTweet._parts = [{...quotedTweet}]
+      obj.quotedTweet = convertScrapedTo(quotedTweet, usersById)
+      obj.quotedTweet._isQuoted = obj.id
+    }
   }
 
   if (origT._quoted) {  // as in replied to
@@ -404,14 +411,16 @@ onMount(fetchData)
 
       <div class="ml-auto"></div>
 
-      <div class="meta-gray">
+      {#if c.info}<div class='narrator-skip meta-gray' style='line-height: 1;'>[{c.info}]</div>{/if}
+
+      <div class="meta-gray user-select-none">
         {#if c.favoriteCount}♥{c.favoriteCount}{/if}
         {#if c.retweetCount} <span style="font-weight: 800;">↻</span>{c.retweetCount}{/if}
         {#if c.quoteCount} ❝{c.quoteCount}{/if}
         {#if c.replyCount} &#10149;&#xFE0E;{c.replyCount}{/if}
       </div>
 
-      <a href={`https://x.com/${c.username}/status/${c.id}`} title="reply">
+      <a href={`https://x.com/${c.username}/status/${c.id}`} title="reply" class="user-select-none">
         &#10149;&#xFE0E;
       </a>
     </div>
@@ -802,7 +811,8 @@ hr {
   border-left: 4px solid var(--text-color);
   /* padding: 0.3em 0 0.3em 0.5em; */
   padding: 0.0em 0 0.0em 0.5em;
-    border-radius: 2px;
+  border-radius: 2px;
+  min-height: 1em;
 }
 
 .quote-single-line {

@@ -66,7 +66,7 @@ function onKeyDown(e) {
     }
 
     focusComment(nextIndex)
-  } else if (hot('h')) {
+  } else if (hot('h') || hot('shift+h')) {
     e.preventDefault()
     const currentCommentEl = document.activeElement.closest('.comment')
     if (!currentCommentEl) return
@@ -74,7 +74,10 @@ function onKeyDown(e) {
     const commentId = currentCommentEl.id.replace('comment-', '')
     const comment = data.find(c => c.id === commentId)
     if (comment) {
-      const url = `https://x.com/${comment.username}/status/${comment.id}`
+      let url = `https://x.com/${comment.username}/status/${comment.id}`
+      if (hot('shift+h')) {
+        url = `http://localhost:3412/?url=${encodeURIComponent(url)}`
+      }
       if (window._openTab) {  // userscript
         window._openTab(url)
       } else {
