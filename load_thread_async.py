@@ -11,14 +11,11 @@ import asyncio
 import inspect
 import random
 import re
+import argparse
+import tempfile
+import os
+import shutil
 from trid import gen_trid, init_trid
-try:
-    import uvloop
-    uvloop_installed = True
-except ImportError:
-    uvloop = None
-    uvloop_installed = False
-
 from aio_pool import AioPool
 
 red_color = "\033[91m"
@@ -27,7 +24,7 @@ reset_color = "\033[0m"
 
 SESSION_ID = datetime.now(UTC).isoformat()
 
-USERAGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:137.0) Gecko/20100101 Firefox/137.0'
+USERAGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:143.0) Gecko/20100101 Firefox/143.0'
 
 async def sure(fn, max_sleep=32):
     t = 1
@@ -150,7 +147,7 @@ def get_tweet_ids_belonging_to_thread(tweets, thread_id):
     return thread
 
 
-async def load_tree(pool: AioPool, thread_id):
+async def load_tree(pool: AioPool, thread_id, limit_requests=None):
     total_count = 0
 
     already_fetched = set()  # (tweet_id, cursor)
@@ -162,7 +159,13 @@ async def load_tree(pool: AioPool, thread_id):
     expected_replies_count = collections.Counter()  # tweet id -> count
     got_replies_count = collections.Counter()
 
-    pool.put_task(thread_id, None)
+    def put_task_limited(*args):
+        if limit_requests is not None and pool.requests_count >= limit_requests:
+            return False
+        pool.put_task(*args)
+        return True
+
+    put_task_limited(thread_id, None)
 
     while True:
         async for (args, kwargs, response) in pool.results_iter():
@@ -223,7 +226,7 @@ async def load_tree(pool: AioPool, thread_id):
                 f = (tweet_id, c['value'])
                 if f not in already_fetched:
                     already_fetched.add(f)
-                    pool.put_task(*f)
+                    put_task_limited(*f)
 
         # when no cursors are left to fetch,
         # check which tweets don't have all replies loaded
@@ -241,8 +244,8 @@ async def load_tree(pool: AioPool, thread_id):
                 f = (tweet_id, None)
                 if f not in already_fetched:
                     already_fetched.add(f)
-                    pool.put_task(*f)
-                    added += 1
+                    if put_task_limited(*f):
+                        added += 1
 
         print()
         print('ADDED', added)
@@ -370,12 +373,15 @@ class HttpxTwitterCsrf:
 
 
 async def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <thread_id_or_url> <output_path>", file=sys.stderr)
-        exit(1)
+    parser = argparse.ArgumentParser(description='Load Twitter thread data')
+    parser.add_argument('thread_id_or_url', help='Thread ID or Twitter URL')
+    parser.add_argument('output_path', help='Output JSON file path')
+    parser.add_argument('--limit-requests', type=int, help='Maximum number of requests to make (default: no limit)')
+    args = parser.parse_args()
 
-    input_arg = sys.argv[1]
-    output_path = sys.argv[2]
+    input_arg = args.thread_id_or_url
+    output_path = args.output_path
+    limit_requests = args.limit_requests
 
     thread_id = None
     if input_arg.isdigit():
@@ -405,7 +411,7 @@ async def main():
     pool = AioPool(num_workers, worker_fn, worker_args)
 
     st = time.monotonic()
-    thread = await load_tree(pool, thread_id)
+    thread = await load_tree(pool, thread_id, limit_requests)
 
     print()
     print('*' * 80)
@@ -417,19 +423,13 @@ async def main():
 
     await pool.shutdown()
 
-    with open(output_path, 'w') as f:
-        json.dump(thread, f, ensure_ascii=False)
+    temp_dir = os.path.dirname(output_path)
+    with tempfile.NamedTemporaryFile(mode='w', dir=temp_dir, suffix='.tmp', delete=False, encoding='utf-8') as temp_file:
+        json.dump(thread, temp_file, ensure_ascii=False)
+        temp_path = temp_file.name
+
+    shutil.move(temp_path, output_path)
 
 
 if __name__ == '__main__':
-    # asyncio.run(main(), debug=True)
-    # exit(0)
-    if uvloop_installed:
-        if sys.version_info >= (3, 11):
-            with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
-                runner.run(main())
-        else:
-            uvloop.install()
-            asyncio.run(main())
-    else:
-        asyncio.run(main())
+    asyncio.run(main())

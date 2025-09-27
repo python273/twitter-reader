@@ -126,7 +126,7 @@ $: groupedBlocks = (() => {
         {segment.text}
       </a>
     {:else}
-      <span style={getSegmentStyleString(segment)}>
+      <span style={'white-space-collapse: preserve;' + getSegmentStyleString(segment)}>
         {segment.text}
       </span>
     {/if}
@@ -151,8 +151,8 @@ $: groupedBlocks = (() => {
         {@const imgUrl = getMediaUrl(mediaItem.mediaId)}
         {#if imgUrl}
           <div>
-            <img src={imgUrl} alt={entity.data.caption || 'Media'} />
-            {#if entity.data.caption}<p>{entity.data.caption}</p>{/if}
+            <img src={imgUrl} alt={entity.data.caption || ''} />
+            {#if entity.data.caption}<p style="color: var(--meta-color); margin-top: 0;"><small>{entity.data.caption}</small></p>{/if}
           </div>
         {/if}
       {:else if entity.type === 'DIVIDER'}

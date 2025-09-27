@@ -17,7 +17,10 @@ async def init_trid(headers={}):
 
     ondemand_file_url = get_ondemand_file_url(response=home_page_response)
     ondemand_file = await session.get(url=ondemand_file_url)
-    ondemand_file_response = bs4.BeautifulSoup(ondemand_file.content, 'html.parser')
+    class Bla(bs4.BeautifulSoup):
+        text = ondemand_file.text
+    ondemand_file_response = Bla()
+    # ondemand_file_response = bs4.BeautifulSoup(ondemand_file.content, 'html.parser')
     ct = ClientTransaction(
         home_page_response=home_page_response,
         ondemand_file_response=ondemand_file_response

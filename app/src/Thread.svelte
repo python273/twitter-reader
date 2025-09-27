@@ -1,6 +1,7 @@
 <script>
 import { onMount, tick } from 'svelte'
 import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils'
+import { createTweetTree } from './tweet-tree.js'
 import Username from './Username.svelte'
 import UserNote from './UserNote.svelte'
 import Article from './Article.svelte'
@@ -323,10 +324,17 @@ const convertScrapedTo = (origT, usersById) => {
 
 const fetchData = async () => {
   const thread = await (await fetch(`/tree_${threadId}.json`)).json()
-  opTweet = thread['tree'][0]
+  let threadTree;
+  if (thread.tweets) {
+    threadTree = createTweetTree(thread.tweets, threadId)
+  } else {
+    threadTree = thread.tree  // hmm, fallback for feed
+  }
+  opTweet = threadTree[0]
 
   usersById = {}
-  for (let u of Object.values(thread['users_by_id'])) {
+  const users = thread.users_by_id ? Object.values(thread.users_by_id) : thread.users
+  for (let u of users) {
     usersById[u.rest_id] = {
       id: u.rest_id,
       rating: parseInt(localStorage[`ur-${u.rest_id}`], 10),
@@ -343,7 +351,7 @@ const fetchData = async () => {
     }
   }
 
-  const tempTree = thread['tree'].map(t => convertScrapedTo(t, usersById))
+  const tempTree = threadTree.map(t => convertScrapedTo(t, usersById))
   window.document.title = `${tempTree[0].visibleRawText} | Twitter Reader`
 
   // This stack holds information about the ancestors of the current tweet.
@@ -697,7 +705,7 @@ p.p-last-line {
   margin: 3px 0 3px 0;
 
   width: 100%;
-  max-width: min(62ch, 100vw);
+  max-width: min(64ch, 100vw);
   background-color: var(--comment-bg-color);
   overflow-wrap: anywhere;
 
@@ -768,7 +776,7 @@ p.p-last-line {
 .comment-content {
   display: flex;
   flex-direction: column;
-  margin: 0 0.4em 5px 0.4em;
+  margin: 0 0.5em 0.3em 0.5em;
   overflow: auto hidden;
 }
 

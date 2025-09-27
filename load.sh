@@ -27,11 +27,9 @@ else
     THREAD_ID="$THREAD_INPUT"
 fi
 
-RAW_OUTPUT="threads/thread_${THREAD_ID}.json"
 TREE_OUTPUT="app/public/tree_${THREAD_ID}.json"
 
-mkdir -p threads
+mkdir -p app/public
 
-python3 load_thread_async.py "$THREAD_INPUT" "$RAW_OUTPUT"
-python3 thread_to_tree_grouped.py "$RAW_OUTPUT" "$TREE_OUTPUT"
+python3 load_thread_async.py "$THREAD_INPUT" "$TREE_OUTPUT"
 open --background "http://localhost:5000/#${THREAD_ID}"

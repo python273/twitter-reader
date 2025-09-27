@@ -6,8 +6,7 @@ A random thread to check out the reader:
 https://tw.cns.wtf/#1559672719414681601
 
 ```
-$ python3 load_thread_async.py 12345 threads/thread_12345.json
-$ python3 thread_to_tree_grouped.py threads/thread_12345.json app/public/tree_12345.json
+$ python3 load_thread_async.py 12345 app/public/tree_12345.json
 $ cd app
 $ npm run dev
 
