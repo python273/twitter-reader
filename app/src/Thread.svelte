@@ -147,6 +147,11 @@ function parseTextEntities(origT) {
     ...entities.urls.map(i => ({...i, _type: 'url'})),
     ...entities.hashtags.map(i => ({...i, _type: 'hashtag'})),
     ...richtextTags.map(i => ({...i, _type: 'rich'})),
+    ...(noteTweet?.media?.inline_media || []).map(m => ({
+      _type: 'media',
+      media_id: m.media_id,
+      indices: [m.index, m.index]
+    })),
     // ...entities.symbols.map(i => ({...i, _type: 'symbol'})),
   ]
 
@@ -156,6 +161,7 @@ function parseTextEntities(origT) {
   allEntities.sort((a, b) => a.indices[0] - b.indices[0])
 
   const paragraphs = []
+  const usedMediaIds = []
   let lastIndex = 0
   let currentParagraph = []
 
@@ -194,6 +200,9 @@ function parseTextEntities(origT) {
         e.hashtag = entity.text
       } else if (e._type === 'rich') {
         e.richtext_types = entity.richtext_types
+      } else if (e._type === 'media') {
+        e.media = t.extended_entities.media.find(media => media.id_str === entity.media_id)
+        usedMediaIds.push(entity.media_id)
       }
 
       currentParagraph.push(e)
@@ -214,7 +223,7 @@ function parseTextEntities(origT) {
     })
   }
 
-  return paragraphs
+  return { paragraphs, usedMediaIds }
 }
 
 
@@ -234,11 +243,12 @@ const convertScrapedTo = (origT, usersById) => {
   const visibleText = unescapeHtmlEntities(
     Array.from(t['full_text']).slice(a, b).join('')
   )
-  const text = parseTextEntities(origT)
+  const { paragraphs, usedMediaIds } = parseTextEntities(origT)
   const date = new Date(t.created_at)
 
   // TODO: convert format
-  const media = t?.extended_entities?.media || t?.entities?.media
+  let media = t?.extended_entities?.media || []  // || t?.entities?.media
+  media = media.filter(m => !usedMediaIds.includes(m.id_str))
 
   const collapsed = (
     u.rating < -10
@@ -286,7 +296,7 @@ const convertScrapedTo = (origT, usersById) => {
     quotedId: t.quoted_status_id_str,
 
     collapsed,
-    text,
+    paragraphs,
     visibleRawText: visibleText,
 
     media,
@@ -394,6 +404,51 @@ onMount(fetchData)
 
 <ThreadHotkeys {data}/>
 
+{#snippet renderMedia(m)}
+  {#if m.type === "photo"}
+    <a href={m['media_url_https']}>
+      <img
+        class="attach"
+        alt=''
+        src={m['media_url_https']}
+        width={m['original_info']['width']}
+        height={m['original_info']['height']}
+        loading="lazy"
+      />
+    </a>
+  {:else if m.type === "video"}
+    <!-- svelte-ignore a11y-media-has-caption -->
+    <video
+      class="attach"
+      controls
+      preload="none"
+      width={m['original_info']['width']}
+      height={m['original_info']['height']}
+      poster={m['media_url_https']}
+    >
+      {#each m.video_info.variants.reverse() as v}
+        <source src={v.url} type={v.content_type}>
+      {/each}
+    </video>
+  {:else if m.type === "animated_gif"}
+    <!-- svelte-ignore a11y-media-has-caption -->
+    <video
+      class="attach-gif"
+      controls
+      loop
+      preload="metadata"
+      width={m['original_info']['width']}
+      height={m['original_info']['height']}
+    >
+      {#each m.video_info.variants.reverse() as v}
+        <source src={v.url} type={v.content_type}>
+      {/each}
+    </video>
+  {:else}
+    <pre>{JSON.stringify(m)}</pre>
+  {/if}
+{/snippet}
+
 {#snippet renderComment(c)}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div id="comment-{c.id}{c._isQuoted ? `-quoted-${c._isQuoted}` : ''}"
@@ -434,9 +489,6 @@ onMount(fetchData)
     </div>
 
     <div class="comment-content" class:d-none={c.collapsed} class:narrator-skip={c.collapsed}>
-      {#if c.article}
-        <Article article={c.article} />
-      {/if}
       {#each c.parts as p, pi (p.id)}
         {#if pi > 0}
           <div class="comment-header tweet-splitter narrator-skip">
@@ -467,11 +519,11 @@ onMount(fetchData)
           </div>
         {/if}
 
-        {#each p.text as paragraph, paragraph_index}
+        {#each p.paragraphs as paragraph, paragraph_index}
           <p
             class="narrator-paragraph"
             class:quote={paragraph.type === 'quote'}
-            class:p-last-line={paragraph_index == (p.text.length-1)}
+            class:p-last-line={paragraph_index == (p.paragraphs.length-1)}
           >
             {#each paragraph as part}
               {#if part._type === 'text'}
@@ -488,6 +540,8 @@ onMount(fetchData)
                 <span class={part.richtext_types.map(t => 'rich-' + t.toLowerCase()).join(' ')}>
                   {part.text}
                 </span>
+              {:else if part._type === 'media' && part.media}
+                {@render renderMedia(part.media)}
               {/if}
             {/each}
           </p>
@@ -500,54 +554,17 @@ onMount(fetchData)
         {/if}
 
         {#if p.media}
-        <div>
-          {#each p.media as m, mi (m.id_str)}
-            {#if m.type === "photo"}
-              <a href={m['media_url_https']}>
-                <img
-                  class="attach"
-                  alt=''
-                  src={m['media_url_https']}
-                  width={m['original_info']['width']}
-                  height={m['original_info']['height']}
-                  loading="lazy"
-                />
-              </a>
-            {:else if m.type === "video"}
-              <!-- svelte-ignore a11y-media-has-caption -->
-              <video
-                class="attach"
-                controls
-                preload="none"
-                width={m['original_info']['width']}
-                height={m['original_info']['height']}
-                poster={m['media_url_https']}
-              >
-                {#each m.video_info.variants.reverse() as v}
-                  <source src={v.url} type={v.content_type}>
-                {/each}
-              </video>
-            {:else if m.type === "animated_gif"}
-              <!-- svelte-ignore a11y-media-has-caption -->
-              <video
-                class="attach-gif"
-                controls
-                loop
-                preload="metadata"
-                width={m['original_info']['width']}
-                height={m['original_info']['height']}
-              >
-                {#each m.video_info.variants.reverse() as v}
-                  <source src={v.url} type={v.content_type}>
-                {/each}
-              </video>
-            {:else}
-              <pre>{JSON.stringify(m)}</pre>
-            {/if}
-          {/each}
-        </div>
+          <div>
+            {#each p.media as m (m.id_str)}
+              {@render renderMedia(m)}
+            {/each}
+          </div>
         {/if}
       {/each}
+
+      {#if c.article}
+        <Article article={c.article} />
+      {/if}
     </div>
   </div>
 {/snippet}
