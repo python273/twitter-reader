@@ -75,7 +75,8 @@ let threadNarrator
 
 export let threadId
 let usersById = {}
-let opTweet = {}
+let tweets = []
+let opTweetUserId = 0
 let data = []
 $: {
   window._data = data
@@ -227,7 +228,7 @@ function parseTextEntities(origT) {
 }
 
 
-const convertScrapedTo = (origT, usersById) => {
+const convertTweet = (origT, usersById) => {
   if (origT['__typename'] !== 'Tweet') {
     console.log(origT)
     //throw Error('not tweet?')
@@ -283,8 +284,6 @@ const convertScrapedTo = (origT, usersById) => {
     byColor,
     byBgColor,
 
-    isOP: t.user_id_str === opTweet.legacy.user_id_str,
-
     favoriteCount: t.favorite_count,
     quoteCount: t.quote_count,
     retweetCount: t.retweet_count,
@@ -302,74 +301,71 @@ const convertScrapedTo = (origT, usersById) => {
     media,
     parts: [],
     quotedTweet: null,
-    repliedTweet: null,
-  }
+    repliedTweet: origT._quoted ? convertTweet(origT._quoted, usersById) : null,
 
-  if (origT.article) {
-    obj.article = origT.article.article_results.result
+    article: origT.article ? origT.article.article_results.result : null,
   }
 
   if (origT._parts) {  // thread tweets group
-    obj.parts = origT._parts.map(i => convertScrapedTo(i, usersById))
+    obj.parts = origT._parts.map(i => convertTweet(i, usersById))
   } else {
-    obj.parts = []
+    obj.parts = [obj]
   }
 
   if (origT?.quoted_status_result?.result) {
     let quotedTweet = origT?.quoted_status_result?.result
     if (quotedTweet['__typename'] === 'TweetWithVisibilityResults') quotedTweet = quotedTweet.tweet
     if (quotedTweet['__typename'] === 'Tweet') {  // vs TweetTombstone
-      quotedTweet._parts = [{...quotedTweet}]
-      obj.quotedTweet = convertScrapedTo(quotedTweet, usersById)
-      obj.quotedTweet._isQuoted = obj.id
+      obj.quotedTweet = convertTweet(quotedTweet, usersById)
     }
-  }
-
-  if (origT._quoted) {  // as in replied to
-    obj.repliedTweet = convertScrapedTo(origT._quoted, usersById)
   }
 
   return obj
 }
 
+const convertUser = (u) => {
+  return {
+    id: u.rest_id,
+    rating: parseInt(localStorage[`ur-${u.rest_id}`], 10),
+    createdAt: new Date(u.legacy.created_at || u.core.created_at),
+    username: u.legacy.screen_name || u.core.screen_name,
+    name: u.legacy.name || u.core.name,
+    avatarUrl: u.legacy?.profile_image_url_https || u.avatar?.image_url,
+
+    description: u.legacy.description,
+    location: u.legacy.location,
+
+    followingCount: u.legacy.friends_count,
+    followersCount: u.legacy.followers_count,
+  }
+}
+
 const fetchData = async () => {
   const thread = await (await fetch(`/tree_${threadId}.json`)).json()
-  let threadTree;
-  if (thread.tweets) {
-    threadTree = createTweetTree(thread.tweets, threadId)
-  } else {
-    threadTree = thread.tree  // hmm, fallback for feed
-  }
-  opTweet = threadTree[0]
 
   usersById = {}
   const users = thread.users_by_id ? Object.values(thread.users_by_id) : thread.users
   for (let u of users) {
-    usersById[u.rest_id] = {
-      id: u.rest_id,
-      rating: parseInt(localStorage[`ur-${u.rest_id}`], 10),
-      createdAt: new Date(u.legacy.created_at || u.core.created_at),
-      username: u.legacy.screen_name || u.core.screen_name,
-      name: u.legacy.name || u.core.name,
-      avatarUrl: u.legacy?.profile_image_url_https || u.avatar?.image_url,
-
-      description: u.legacy.description,
-      location: u.legacy.location,
-
-      followingCount: u.legacy.friends_count,
-      followersCount: u.legacy.followers_count,
-    }
+    usersById[u.rest_id] = convertUser(u)
   }
 
-  const tempTree = threadTree.map(t => convertScrapedTo(t, usersById))
-  window.document.title = `${tempTree[0].visibleRawText} | Twitter Reader`
+  let threadTree;
+  if (thread.tweets) {
+    opTweetUserId = thread.tweets.find(i => i.rest_id === threadId).legacy.user_id_str
+    threadTree = createTweetTree(thread.tweets, threadId).map(t => convertTweet(t, usersById))
+    tweets = thread.tweets.map(t => convertTweet(t, usersById))
+  } else {
+    threadTree = thread.tree  // hmm, fallback for feed
+  }
+
+  window.document.title = `${threadTree[0].visibleRawText} | Twitter Reader`
 
   // This stack holds information about the ancestors of the current tweet.
   // It's indexed by the original depth (1-based), so we can think of
   // ancestorStack[d] as the info for the tweet at depth d in the current path.
   const ancestorStack = []
 
-  for(const t of tempTree) {
+  for(const t of threadTree) {
     const originalDepth = t.depth
     ancestorStack.length = originalDepth
     t.pad = ancestorStack.slice(1).map(ancestor => ({
@@ -383,7 +379,7 @@ const fetchData = async () => {
     t.depth = Math.max(0, originalDepth - 1)
   }
 
-  data = tempTree
+  data = threadTree
 }
 
 onMount(fetchData)
@@ -449,18 +445,18 @@ onMount(fetchData)
   {/if}
 {/snippet}
 
-{#snippet renderComment(c)}
+{#snippet renderComment(c, quotedId)}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <div id="comment-{c.id}{c._isQuoted ? `-quoted-${c._isQuoted}` : ''}"
+  <div id="comment-{c.id}{quotedId ? `-quoted-${quotedId}` : ''}"
     class='comment'
     class:comment-top-level={c.depth === 0}
     class:comment-blocked={c.collapsed && c.user.rating < -10}
-    class:comment-quoted={c._isQuoted}
-    tabindex={!c._isQuoted ? 0 : undefined}
+    class:comment-quoted={quotedId}
+    tabindex={!quotedId ? 0 : undefined}
   >
     <div class="comment-header narrator-skip">
       <Username data={c.user} color={c.byColor} bgColor={c.byBgColor}/>
-      {#if c.isOP}<div class="op">OP</div>{/if}
+      {#if c.user.id === opTweetUserId}<div class="op">OP</div>{/if}
       <span class="date meta-gray" title={c.formattedTime}>{c.timeAgo}</span>
 
       <button class="btn-text" on:click={(e) => collapse(e, c)} title="collapse">
@@ -549,7 +545,7 @@ onMount(fetchData)
 
         {#if p.quotedTweet}
           <div class="">
-            {@render renderComment(p.quotedTweet)}
+            {@render renderComment(p.quotedTweet, c.id)}
           </div>
         {/if}
 
@@ -563,7 +559,7 @@ onMount(fetchData)
       {/each}
 
       {#if c.article}
-        <Article article={c.article} />
+        <Article article={c.article} {renderComment} {tweets} />
       {/if}
     </div>
   </div>

@@ -65,7 +65,44 @@ def find_all_users(data):
     return find_dicts_deep(data, lambda d: d.get('__typename') == 'User')
 
 
-async def load_tweet(session, tweet_id, cursor):
+def find_article_referenced_tweets(data):
+    q = find_dicts_deep(data, lambda d: 'entityKey' in d and 'tweetId' in d)
+    return list(set(i['tweetId'] for i in q))
+
+
+async def load_tweets_by_ids(session: httpx.AsyncClient, tweet_ids: list[str]):
+    headers = {
+        'content-type': 'application/json',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'x-twitter-client-language': 'en',
+        'x-twitter-active-user': 'yes',
+    }
+
+    params = {
+        'variables': f'{{"tweetIds":{json.dumps(tweet_ids)},"includePromotedContent":true,"withBirdwatchNotes":true,"withVoice":true,"withCommunity":true}}',
+        'features': '{"creator_subscriptions_tweet_preview_api_enabled":true,"premium_content_api_read_enabled":false,"communities_web_enable_tweet_community_results_fetch":true,"c9s_tweet_anatomy_moderator_badge_enabled":true,"responsive_web_grok_analyze_button_fetch_trends_enabled":false,"responsive_web_grok_analyze_post_followups_enabled":true,"responsive_web_jetfuel_frame":true,"responsive_web_grok_share_attachment_enabled":true,"articles_preview_enabled":true,"responsive_web_edit_tweet_api_enabled":true,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":true,"view_counts_everywhere_api_enabled":true,"longform_notetweets_consumption_enabled":true,"responsive_web_twitter_article_tweet_consumption_enabled":true,"tweet_awards_web_tipping_enabled":false,"responsive_web_grok_show_grok_translated_post":false,"responsive_web_grok_analysis_button_from_backend":true,"creator_subscriptions_quote_tweet_preview_enabled":false,"freedom_of_speech_not_reach_fetch_enabled":true,"standardized_nudges_misinfo":true,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":true,"longform_notetweets_rich_text_read_enabled":true,"longform_notetweets_inline_media_enabled":true,"payments_enabled":false,"profile_label_improvements_pcf_label_in_post_enabled":true,"rweb_tipjar_consumption_enabled":true,"verified_phone_label_enabled":false,"responsive_web_grok_image_annotation_enabled":true,"responsive_web_grok_imagine_annotation_enabled":true,"responsive_web_grok_community_note_auto_translation_is_enabled":false,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"responsive_web_graphql_timeline_navigation_enabled":true,"responsive_web_enhance_cards_enabled":false}',
+    }
+
+    r = await session.get(
+        'https://x.com/i/api/graphql/exI9CNWtq0Eoq2aSjneeew/TweetResultsByRestIds',
+        params=params,
+        headers=headers,
+        timeout=20.0,
+    )
+
+    if r.status_code != 200:
+        r.raise_for_status()
+
+    try:
+        j = r.json()
+    except Exception:
+        print('json decode error', r.status_code, r.content)
+        raise
+
+    return j
+
+
+async def load_tweet(session: httpx.AsyncClient, tweet_id, cursor):
     headers = {
         'content-type': 'application/json',
         'Accept-Language': 'en-US,en;q=0.5',
@@ -422,6 +459,27 @@ async def main():
     print()
 
     await pool.shutdown()
+
+    existing_tweet_ids = {t['rest_id'] for t in thread['tweets']}
+    missing_tweet_ids = list(set(find_article_referenced_tweets(thread)) - existing_tweet_ids)
+
+    if missing_tweet_ids:
+        print(f'Fetching {len(missing_tweet_ids)} article tweets...')
+        session = manager.get_session()
+        if not session:
+            pass
+        else:
+            entity_response = await load_tweets_by_ids(session, missing_tweet_ids)
+            entity_tweets = find_all_tweets(entity_response)
+            print(f'Added {len(entity_tweets)} new tweets')
+            thread['tweets'].extend(entity_tweets)
+            
+            entity_users = find_all_users(entity_response)
+            existing_user_ids = {u['rest_id'] for u in thread['users']}
+            new_users = [u for u in entity_users if u['rest_id'] not in existing_user_ids]
+            
+            print(f'Added {len(new_users)} new users')
+            thread['users'].extend(new_users)
 
     temp_dir = os.path.dirname(output_path)
     with tempfile.NamedTemporaryFile(mode='w', dir=temp_dir, suffix='.tmp', delete=False, encoding='utf-8') as temp_file:

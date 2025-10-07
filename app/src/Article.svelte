@@ -1,5 +1,7 @@
 <script>
 export let article = {}
+export let renderComment
+export let tweets = []
 let contentState = article.content_state || { blocks: [], entityMap: [] }
 
 const styleMap = {
@@ -157,6 +159,13 @@ $: groupedBlocks = (() => {
         {/if}
       {:else if entity.type === 'DIVIDER'}
         <hr/>
+      {:else if entity.type === 'TWEET'}
+        {@const tweet = tweets.find(t => t.id === entity.data.tweetId)}
+        {#if tweet}
+          {@render renderComment(tweet, `article-entity-${entity.data.entityKey}`)}
+        {:else}
+          <div style="color: red;">Tweet not found: {entity.data.tweetId}</div>
+        {/if}
       {:else}
         <div style="color: red;">unknown entity {entity.type}</div>
         <code><pre>{JSON.stringify(group, null, 2)}</pre></code>
