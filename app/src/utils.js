@@ -1,4 +1,4 @@
-
+import { writable } from 'svelte/store'
 
 export const intToRgb = (i) => ([(i >> 16) & 0xFF, (i >> 8) & 0xFF, i & 0xFF])
 export const rgbToCss = (r, g, b) => `rgb(${r}, ${g}, ${b})`
@@ -79,3 +79,23 @@ export function timeSince(dateInput) {
 
   return date.getFullYear() + " " + months[date.getMonth()] + " " + date.getDate()
 }
+
+/**
+  * @param {string} key
+  * @returns {[() => void, import('svelte/store').Writable<number>]}
+  */
+function createCrossTabs(key) {
+  const store = writable(0)
+  window.addEventListener('storage', (event) => {
+    if (event.key === key) {
+      store.update(n => n + 1)
+    }
+  })
+  const notify = () => {
+    store.update(n => n + 1)
+    localStorage.setItem(key, Date.now().toString())
+  }
+  return [notify, store]
+}
+
+export const [notifyThemeChange, subThemeChange] = createCrossTabs('crosstabs_theme')
