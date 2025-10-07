@@ -1,7 +1,7 @@
 <script>
 import { onMount, onDestroy } from 'svelte'
 
-export let data
+let { data } = $props()
 
 function isPressed(e, combo) {
   const parts = combo.toLowerCase().split('+')

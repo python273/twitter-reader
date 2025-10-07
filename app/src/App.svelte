@@ -2,8 +2,8 @@
 import Thread from './Thread.svelte'
 import { themeStore } from './themeStore.js'
 
-let page = 'thread'
-let props = {}
+let page = $state('thread')
+let props = $state({ threadId: undefined })
 
 const parseHash = () => {
   const h = location.hash.slice(1)

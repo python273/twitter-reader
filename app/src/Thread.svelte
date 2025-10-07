@@ -1,55 +1,17 @@
 <script>
-import { onMount, tick } from 'svelte'
-import { rgbToCss, hashString, timeSince, HSVtoRGB } from './utils'
+import { onMount } from 'svelte'
+import { timeSince, getUsernameColor } from './utils'
 import { createTweetTree } from './tweet-tree.js'
 import Username from './Username.svelte'
 import UserNote from './UserNote.svelte'
 import Article from './Article.svelte'
 import ThreadHotkeys from './ThreadHotkeys.svelte'
 import ThreadNarrator from './ThreadNarrator.svelte'
+import ColorScroll from './ColorScroll.svelte'
 
-
-function getUsernameColor(username) {
-  if (!username) return ["#000", "#fff"]
-  const i = hashString(username)
-  // eslint-disable-next-line no-unused-vars
-  const [x, y, z] = [
-    ((i >> 16) & 0xFFFF) / (0xFFFF + 0.1),
-    ((i >> 8) & 0xFF) / 255.0,
-    (i & 0xFF) / 256.0
-  ]
-  let [r, g, b] = HSVtoRGB(x, y * 0.7 + 0.3, 1.0,).map(i => i * 255.0)
-  const byBgColor = rgbToCss(r, g, b)
-  const byColor = ((r * 0.299 + g * 0.587 + b * 0.114) > 186) ? '#000' : '#fff'
-  return [byBgColor, byColor]
-}
-
-let colorScroll = []
-let totalScrollHeight = 0
-async function updateColorScroll(data) {
-  if (!data || data.length === 0) return
-  await tick()
-
-  const out = []
-
-  // the first el is offset to the first comment
-  const el = document.getElementById(`comment-${data[0].id}`)
-  out.push({color: '', height: el.parentElement.offsetTop})
-
-  for (let c of data) {
-    const el = document.getElementById(`comment-${c.id}`)
-    if (!el) {
-      console.error(`Comment ${c.id} not found`)
-      continue
-    };
-    const elHeight = el.parentElement.offsetHeight
-    out.push({color: c.byBgColor, height: elHeight})
-  }
-
-  colorScroll = out
-  totalScrollHeight = document.documentElement.scrollHeight
-}
-$: { updateColorScroll(data) }
+let currentlyReading = $state(null)
+let narratorPlaying = $state(false)
+let threadNarrator = $state()
 
 function collapse(event, comment) {
   let index = data.findIndex(item => item.id === comment.id)
@@ -67,21 +29,15 @@ function collapse(event, comment) {
   data = data
 }
 
-let currentlyReading = null
-let narratorPlaying = false
-let threadNarrator
-
-// ###################################################################################
-
-export let threadId
-let usersById = {}
-let tweets = []
-let opTweetUserId = 0
-let data = []
-$: {
+let { threadId } = $props()
+let usersById = $state({})
+let tweets = $state([])
+let opTweetUserId = $state(0)
+let data = $state([])
+$effect(() => {
   window._data = data
   window._usersById = usersById
-}
+})
 
 window.addEventListener('c-update-user-rating', (e) => {
   if (!(e.prevRating >= -10 && e.newRating < -10)) return
@@ -349,7 +305,7 @@ const fetchData = async () => {
     usersById[u.rest_id] = convertUser(u)
   }
 
-  let threadTree;
+  let threadTree
   if (thread.tweets) {
     opTweetUserId = thread.tweets.find(i => i.rest_id === threadId).legacy.user_id_str
     threadTree = createTweetTree(thread.tweets, threadId).map(t => convertTweet(t, usersById))
@@ -387,13 +343,9 @@ onMount(fetchData)
 
 {#if data.length}
 <div class="thread-page">
-  <ThreadNarrator bind:this={threadNarrator} {data} bind:currentlyReading bind:narratorPlaying />
+<ThreadNarrator bind:this={threadNarrator} {data} bind:currentlyReading bind:narratorPlaying />
 
-  <div class="colors-scroll">
-    {#each colorScroll as c, i}
-      <div style="background: {c.color}; height: {c.height / totalScrollHeight * 100}%; width: 100%;"></div>
-    {/each}
-  </div>
+<ColorScroll {data} />
 
 <div class="thread-container">
 <div class="comments">
@@ -413,7 +365,7 @@ onMount(fetchData)
       />
     </a>
   {:else if m.type === "video"}
-    <!-- svelte-ignore a11y-media-has-caption -->
+    <!-- svelte-ignore a11y_media_has_caption -->
     <video
       class="attach"
       controls
@@ -422,12 +374,12 @@ onMount(fetchData)
       height={m['original_info']['height']}
       poster={m['media_url_https']}
     >
-      {#each m.video_info.variants.reverse() as v}
+      {#each [...m.video_info.variants].reverse() as v}
         <source src={v.url} type={v.content_type}>
       {/each}
     </video>
   {:else if m.type === "animated_gif"}
-    <!-- svelte-ignore a11y-media-has-caption -->
+    <!-- svelte-ignore a11y_media_has_caption -->
     <video
       class="attach-gif"
       controls
@@ -436,7 +388,7 @@ onMount(fetchData)
       width={m['original_info']['width']}
       height={m['original_info']['height']}
     >
-      {#each m.video_info.variants.reverse() as v}
+      {#each [...m.video_info.variants].reverse() as v}
         <source src={v.url} type={v.content_type}>
       {/each}
     </video>
@@ -459,10 +411,10 @@ onMount(fetchData)
       {#if c.user.id === opTweetUserId}<div class="op">OP</div>{/if}
       <span class="date meta-gray" title={c.formattedTime}>{c.timeAgo}</span>
 
-      <button class="btn-text" on:click={(e) => collapse(e, c)} title="collapse">
+      <button class="btn-text" onclick={(e) => collapse(e, c)} title="collapse">
         {#if c.collapsed}[+]{:else}[-]{/if}
       </button>
-      <button class="btn-text" on:click={() => threadNarrator.playComment(c.id)} title="text-to-speech">
+      <button class="btn-text" onclick={() => threadNarrator.playComment(c.id)} title="text-to-speech">
         {#if currentlyReading === c.id && narratorPlaying}■&#xFE0E;{:else}▶&#xFE0E;{/if}
       </button>
 
@@ -669,11 +621,6 @@ p.p-last-line {
     scrollbar-color: #000 transparent !important;
   }
 }
-@media only screen and (max-width: 899px) {
-  .colors-scroll {
-    display: none !important;
-  }
-}
 
 .avatar {
   width: 1.8em;
@@ -856,20 +803,7 @@ hr {
   max-width: 100%;
   max-height: 150px;
 }
-.colors-scroll {
-  z-index: 100;
 
-  position: fixed;
-  top: 0;
-  right: 0;
-
-  width: 8px;
-  height: 100%;
-
-  display: flex;
-  flex-direction: column;
-  contain: strict;
-}
 .rich-italic {
   font-style: italic;
 }

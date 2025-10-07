@@ -37,6 +37,21 @@ const cyrb53 = function(str, seed = 0) {
   return 4294967296 * (2097151 & h2) + (h1>>>0)
 }
 
+export function getUsernameColor(username) {
+  if (!username) return ["#000", "#fff"]
+  const i = hashString(username)
+  // eslint-disable-next-line no-unused-vars
+  const [x, y, z] = [
+    ((i >> 16) & 0xFFFF) / (0xFFFF + 0.1),
+    ((i >> 8) & 0xFF) / 255.0,
+    (i & 0xFF) / 256.0
+  ]
+  let [r, g, b] = HSVtoRGB(x, y * 0.7 + 0.3, 1.0,).map(i => i * 255.0)
+  const byBgColor = rgbToCss(r, g, b)
+  const byColor = ((r * 0.299 + g * 0.587 + b * 0.114) > 186) ? '#000' : '#fff'
+  return [byBgColor, byColor]
+}
+
 
 export function timeSince(dateInput) {
   // 59s, 59m, 23h, Jan 11 (2025), Sep 1 (2024), 2024 Jan 31 

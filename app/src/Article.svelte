@@ -1,8 +1,5 @@
 <script>
-export let article = {}
-export let renderComment
-export let tweets = []
-let contentState = article.content_state || { blocks: [], entityMap: [] }
+let { article = {}, renderComment, tweets = [] } = $props()
 
 const styleMap = {
   'Bold': 'font-weight:bold;',
@@ -66,13 +63,13 @@ function getMediaUrl(mediaId) {
   return media?.media_info?.original_img_url
 }
 
-$: processedArticleBlocks = contentState.blocks.map(block => ({
+const processedArticleBlocks = $derived(article.content_state.blocks.map(block => ({
   key: block.key,
   type: block.type,
-  segments: preprocessBlock(block, contentState.entityMap),
-}))
+  segments: preprocessBlock(block, article.content_state.entityMap),
+})))
 
-$: groupedBlocks = (() => {
+const groupedBlocks = $derived.by(() => {
   const result = []
   let currentList = null
   for (const block of processedArticleBlocks) {
@@ -95,7 +92,7 @@ $: groupedBlocks = (() => {
   }
   if (currentList) result.push(currentList)
   return result
-})()
+})
 </script>
 
 {#if article.cover_media}

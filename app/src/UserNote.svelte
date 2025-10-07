@@ -1,8 +1,8 @@
 <script>
-export let id
+let { id } = $props()
 
 const userNoteKey = `ur-n-${id}`
-let note = ''
+let note = $state('')
 
 function updateNote() {
   note = localStorage[userNoteKey] || ''

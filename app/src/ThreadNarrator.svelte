@@ -2,11 +2,9 @@
 import { onDestroy } from 'svelte'
 import { Narrator } from './narrator'
 
-export let data = []
-export let currentlyReading = null
-export let narratorPlaying = false
+let { data = [], currentlyReading = $bindable(null), narratorPlaying = $bindable(false) } = $props()
 
-let narrator = null
+let narrator = $state(null)
 
 onDestroy(() => {
   if (narrator) narrator.stop()
@@ -76,11 +74,11 @@ export function skipNext() {
 
 {#if narrator}
   <div class="global-narrator-controls">
-    <button class="btn-text" on:click={() => playComment()} title="play/pause">
+    <button class="btn-text" onclick={() => playComment()} title="play/pause">
       {#if narratorPlaying}⏸︎&#xFE0E;{:else}▶&#xFE0E;{/if}
     </button>
-    <button class="btn-text" on:click={skipPrevious} title="previous">⭠</button>
-    <button class="btn-text" on:click={skipNext} title="next">⭢</button>
+    <button class="btn-text" onclick={skipPrevious} title="previous">⭠</button>
+    <button class="btn-text" onclick={skipNext} title="next">⭢</button>
   </div>
 {/if}
 

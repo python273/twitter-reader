@@ -2,22 +2,20 @@
 import { timeSince } from "./utils"
 import Portal from './Portal.svelte'
 
-export let data
-export let color
-export let bgColor
+let { data, color, bgColor } = $props()
 
 const username = data.username
 
-let ref = null
+let ref = $state(null)
 
-let popup = false
-let popupStyle = {}
+let popup = $state(false)
+let popupStyle = $state('')
 
 const userKey = `ur-${data.id}`
 const userNoteKey = `ur-n-${data.id}`
-let note = ''
-let userRating = 9999
-let ratingColor = ''
+let note = $state('')
+let userRating = $state(9999)
+let ratingColor = $state('')
 
 function updateNote() {
   note = localStorage[userNoteKey] || ''
@@ -91,7 +89,7 @@ const togglePopup = () => {
 
 <div class="username-container" bind:this={ref}>
   <button
-    on:click={togglePopup}
+    onclick={togglePopup}
     class="username"
     style="color: {color}; background: {bgColor};"
   >
@@ -99,13 +97,13 @@ const togglePopup = () => {
   </button>
 
   <div class='rating'>
-    <button on:click={() => updateRating(+1)}>+</button>
+    <button onclick={() => updateRating(+1)}>+</button>
     <span style="color: {ratingColor}; font-weight: {ratingColor ? 'bold': ''}">
       {(userRating + '').padStart(3, '\xa0')}
     </span>
-    <button on:click={() => updateRating(-1)}>-</button>
+    <button onclick={() => updateRating(-1)}>-</button>
     &nbsp;
-    <button style='font-size: 12px;' on:click={() => updateRating(-11)}>✕</button>
+    <button style='font-size: 12px;' onclick={() => updateRating(-11)}>✕</button>
   </div>
 
   {#if popup}
@@ -115,8 +113,8 @@ const togglePopup = () => {
         class="note"
         placeholder="Add a note..."
         bind:value={note}
-        on:change={onNoteChange}
-        on:keydown={onNoteKeydown}
+        onchange={onNoteChange}
+        onkeydown={onNoteKeydown}
       />
 
       <div class="meta">
