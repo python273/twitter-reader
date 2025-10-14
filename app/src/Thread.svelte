@@ -308,11 +308,13 @@ const fetchData = async () => {
   let threadTree
   if (thread.tweets) {
     opTweetUserId = thread.tweets.find(i => i.rest_id === threadId).legacy.user_id_str
-    threadTree = createTweetTree(thread.tweets, threadId).map(t => convertTweet(t, usersById))
+    threadTree = createTweetTree(thread.tweets, threadId)
     tweets = thread.tweets.map(t => convertTweet(t, usersById))
   } else {
     threadTree = thread.tree  // hmm, fallback for feed
+    tweets = thread.tree.map(t => convertTweet(t, usersById))
   }
+  threadTree = threadTree.map(t => convertTweet(t, usersById))
 
   window.document.title = `${threadTree[0].visibleRawText} | Twitter Reader`
 

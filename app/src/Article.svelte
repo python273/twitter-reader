@@ -63,7 +63,7 @@ function getMediaUrl(mediaId) {
   return media?.media_info?.original_img_url
 }
 
-const processedArticleBlocks = $derived(article.content_state.blocks.map(block => ({
+const processedArticleBlocks = $derived((article.content_state?.blocks || []).map(block => ({
   key: block.key,
   type: block.type,
   segments: preprocessBlock(block, article.content_state.entityMap),
