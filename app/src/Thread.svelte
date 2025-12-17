@@ -219,6 +219,31 @@ function parsePoll(card) {
   }
 }
 
+function parseCard(card) {
+  if (!card || !card.legacy) return null
+  if (!['player', 'summary', 'summary_large_image'].includes(card.legacy.name)) return null
+
+  const bindingValues = {}
+  for (const bv of card.legacy.binding_values) {
+    bindingValues[bv.key] = bv.value
+  }
+
+  let image
+  for (const key of ['player_image_x_large', 'player_image_large', 'player_image_original', 'player_image', 'player_image_small']) {
+    const imgVal = bindingValues[key]?.image_value
+    if (imgVal?.url) {
+      image = imgVal.url
+      break
+    }
+  }
+  return {
+    title: bindingValues.title?.string_value,
+    description: bindingValues.description?.string_value,
+    domain: bindingValues.domain?.string_value,
+    url: bindingValues.card_url?.string_value || bindingValues.player_url?.string_value,
+    image,
+  }
+}
 
 const convertTweet = (origT, usersById) => {
   if (origT['__typename'] !== 'Tweet') {
@@ -292,6 +317,7 @@ const convertTweet = (origT, usersById) => {
 
     media,
     poll: parsePoll(origT.card),
+    card: parseCard(origT.card),
     parts: [],
     quotedTweet: null,
     repliedTweet: origT._quoted ? convertTweet(origT._quoted, usersById) : null,
@@ -552,6 +578,25 @@ onMount(fetchData)
               <div class="poll-end">Poll ended at {new Date(p.poll.endDatetime).toLocaleString()}</div>
             {/if}
           </div>
+        {/if}
+
+        {#if p.card}
+          <a class="card-preview narrator-skip" href={p.card.url}>
+            <div class="card-content">
+              {#if p.card.domain}
+                <div class="card-domain">{p.card.domain}</div>
+              {/if}
+              {#if p.card.title}
+                <div class="card-title">{p.card.title}</div>
+              {/if}
+              {#if p.card.description}
+                <div class="card-description">{p.card.description}</div>
+              {/if}
+            </div>
+            {#if p.card.image}
+              <img class="card-image" src={p.card.image} alt="" loading="lazy" />
+            {/if}
+          </a>
         {/if}
 
         {#if p.quotedTweet}
@@ -911,5 +956,30 @@ hr {
   font-size: 0.8em;
   color: var(--meta-color);
   font-style: italic;
+}
+
+.card-preview {
+  border: 1.5px solid var(--brand-color);
+  border-radius: 6px;
+  display: block;
+}
+.card-image {
+  width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+}
+.card-content {
+  padding: 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+.card-domain {
+  font-size: 0.8em;
+  color: var(--meta-color);
+}
+.card-description {
+  font-size: 0.8em;
+  color: var(--meta-color);
 }
 </style>
