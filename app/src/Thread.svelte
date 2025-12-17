@@ -183,6 +183,42 @@ function parseTextEntities(origT) {
   return { paragraphs, usedMediaIds }
 }
 
+function parsePoll(card) {
+  if (!card || !card.legacy || !/^poll\d+choice_text_only$/.test(card.legacy.name)) {
+    return null
+  }
+  const bindingValues = {}
+  for (const bv of card.legacy.binding_values) {
+    bindingValues[bv.key] = bv.value
+  }
+  const choices = []
+  let total = 0
+  let maxChoices = 4
+  const match = card.legacy.name.match(/poll(\d+)choice/)
+  if (match) {
+    maxChoices = parseInt(match[1], 10)
+  }
+  for (let i = 1; i <= maxChoices; i++) {
+    const label = bindingValues[`choice${i}_label`]?.string_value
+    if (label === undefined) break
+    const count = parseInt(bindingValues[`choice${i}_count`]?.string_value || '0')
+    choices.push({ label, count })
+    total += count
+  }
+  if (choices.length === 0) return null
+  choices.forEach(choice => {
+    choice.percent = total > 0 ? Math.round(choice.count / total * 100) : 0
+  })
+  return {
+    choices,
+    total,
+    endDatetime: bindingValues.end_datetime_utc?.string_value,
+    durationMinutes: bindingValues.duration_minutes?.string_value,
+    countsAreFinal: bindingValues.counts_are_final?.boolean_value,
+    lastUpdated: bindingValues.last_updated_datetime_utc?.string_value,
+  }
+}
+
 
 const convertTweet = (origT, usersById) => {
   if (origT['__typename'] !== 'Tweet') {
@@ -255,6 +291,7 @@ const convertTweet = (origT, usersById) => {
     visibleRawText: visibleText,
 
     media,
+    poll: parsePoll(origT.card),
     parts: [],
     quotedTweet: null,
     repliedTweet: origT._quoted ? convertTweet(origT._quoted, usersById) : null,
@@ -316,7 +353,7 @@ const fetchData = async () => {
   }
   threadTree = threadTree.map(t => convertTweet(t, usersById))
 
-  window.document.title = `${threadTree[0].visibleRawText} | Twitter Reader`
+  window.document.title = `${threadTree[0].visibleRawText} | @${threadTree[0].username} | Twitter Reader`
 
   // This stack holds information about the ancestors of the current tweet.
   // It's indexed by the original depth (1-based), so we can think of
@@ -356,11 +393,11 @@ onMount(fetchData)
 
 {#snippet renderMedia(m)}
   {#if m.type === "photo"}
-    <a href={m['media_url_https']}>
+    <a href={m['media_url_https'] + '?name=large'}>
       <img
         class="attach"
         alt=''
-        src={m['media_url_https']}
+        src={m['media_url_https'] + '?name=large'}
         width={m['original_info']['width']}
         height={m['original_info']['height']}
         loading="lazy"
@@ -496,6 +533,26 @@ onMount(fetchData)
             {/each}
           </p>
         {/each}
+
+        {#if p.poll}
+          <div class="poll">
+            {#each p.poll.choices as choice, i}
+              <div class="poll-choice">
+                <div class="poll-choice-top">
+                  <span class="poll-choice-label">{choice.label}</span>
+                  <span class="poll-choice-count">{choice.count} ({choice.percent}%)</span>
+                </div>
+                <div class="poll-choice-bar-container">
+                  <div class="poll-choice-bar" style="width: {choice.percent}%"></div>
+                </div>
+              </div>
+            {/each}
+            <div class="poll-total">Total votes: {p.poll.total}</div>
+            {#if p.poll.endDatetime}
+              <div class="poll-end">Poll ended at {new Date(p.poll.endDatetime).toLocaleString()}</div>
+            {/if}
+          </div>
+        {/if}
 
         {#if p.quotedTweet}
           <div class="">
@@ -695,7 +752,7 @@ p.p-last-line {
 
 .comment-quoted {
   margin: 0.5em 0 0 0;
-  border: 2px solid var(--brand-color);
+  border: 1.5px solid var(--brand-color);
 }
 
 .comment-header * {
@@ -798,7 +855,7 @@ hr {
   object-fit: contain;
   max-height: 400px;
   height: auto;
-  border: 2px solid var(--brand-color);
+  border: 1.5px solid var(--brand-color);
 }
 
 .attach-gif {
@@ -811,5 +868,48 @@ hr {
 }
 .rich-bold {
   font-weight: bold;
+}
+
+.poll {
+  margin: 1em 0;
+  padding: 0.5em;
+  border: 1px solid var(--meta-color);
+  border-radius: 6px;
+}
+.poll-choice {
+  margin-bottom: 0.3em;
+}
+.poll-choice-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.2em;
+}
+.poll-choice-bar-container {
+  height: 8px;
+  border: 1px solid var(--brand-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.poll-choice-bar {
+  height: 100%;
+  background-color: var(--brand-color);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.poll-choice-count {
+  font-size: 0.9em;
+  color: var(--meta-color);
+}
+.poll-total {
+  margin-top: 0.5em;
+  font-size: 0.9em;
+  color: var(--meta-color);
+}
+.poll-end {
+  margin-top: 0.3em;
+  font-size: 0.8em;
+  color: var(--meta-color);
+  font-style: italic;
 }
 </style>

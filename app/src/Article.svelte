@@ -189,7 +189,7 @@ const groupedBlocks = $derived.by(() => {
   object-fit: contain;
   max-height: 400px;
   height: auto;
-  border: 2px solid var(--brand-color);
+  border: 1.5px solid var(--brand-color);
 }
 div > *:first-child {
   margin-block-start: 0;
