@@ -13,7 +13,13 @@ let currentlyReading = $state(null)
 let narratorPlaying = $state(false)
 let threadNarrator = $state()
 
-function collapse(event, comment) {
+
+function collapse(event, comment, quotedId) {
+  if (quotedId !== undefined) {
+    comment.collapsed = !comment.collapsed
+    return
+  }
+
   let index = data.findIndex(item => item.id === comment.id)
   let newValue = !comment.collapsed
   comment.collapsed = newValue
@@ -245,6 +251,43 @@ function parseCard(card) {
   }
 }
 
+function parseBirdwatchPivot(pivot) {
+  if (!pivot) return null
+  const { subtitle, title, titleDetail } = pivot
+  if (!subtitle?.text) return null
+
+  const segments = []
+  let lastIndex = 0
+  const entities = subtitle.entities || []
+  entities.sort((a, b) => a.fromIndex - b.fromIndex)
+  
+  for (const entity of entities) {
+    if (entity.fromIndex > lastIndex) {
+      segments.push({
+        _type: 'text',
+        text: subtitle.text.substring(lastIndex, entity.fromIndex)
+      })
+    }
+    segments.push({
+      _type: 'url',
+      url: entity.ref.url,
+      text: subtitle.text.substring(entity.fromIndex, entity.toIndex)
+    })
+    lastIndex = entity.toIndex
+  }
+  if (lastIndex < subtitle.text.length) {
+    segments.push({
+      _type: 'text',
+      text: subtitle.text.substring(lastIndex)
+    })
+  }
+  if (segments.length === 0) {
+    segments.push({ _type: 'text', text: subtitle.text })
+  }
+
+  return {title, titleDetail, segments}
+}
+
 const convertTweet = (origT, usersById) => {
   if (origT['__typename'] !== 'Tweet') {
     console.log(origT)
@@ -323,6 +366,7 @@ const convertTweet = (origT, usersById) => {
     repliedTweet: origT._quoted ? convertTweet(origT._quoted, usersById) : null,
 
     article: origT.article ? origT.article.article_results.result : null,
+    communityNote: parseBirdwatchPivot(origT.birdwatch_pivot),
   }
 
   if (origT._parts) {  // thread tweets group
@@ -476,7 +520,7 @@ onMount(fetchData)
       {#if c.user.id === opTweetUserId}<div class="op">OP</div>{/if}
       <span class="date meta-gray" title={c.formattedTime}>{c.timeAgo}</span>
 
-      <button class="btn-text" onclick={(e) => collapse(e, c)} title="collapse">
+      <button class="btn-text" onclick={(e) => collapse(e, c, quotedId)} title="collapse">
         {#if c.collapsed}[+]{:else}[-]{/if}
       </button>
       <button class="btn-text" onclick={() => threadNarrator.playComment(c.id)} title="text-to-speech">
@@ -487,7 +531,7 @@ onMount(fetchData)
 
       <div class="ml-auto"></div>
 
-      {#if c.info}<div class='narrator-skip meta-gray' style='line-height: 1;'>[{c.info}]</div>{/if}
+      {#if c.info}<div class='meta-gray' style='line-height: 1;'>[{c.info}]</div>{/if}
 
       <div class="meta-gray user-select-none">
         {#if c.favoriteCount}♥{c.favoriteCount}{/if}
@@ -599,18 +643,32 @@ onMount(fetchData)
           </a>
         {/if}
 
-        {#if p.quotedTweet}
-          <div class="">
-            {@render renderComment(p.quotedTweet, c.id)}
+        {#if p.communityNote}
+          <div class="community-note">
+            <strong>{p.communityNote.title}</strong>
+            {#if p.communityNote.titleDetail}
+              <div style="color: var(--meta-color); font-size: 0.9em;">
+                {p.communityNote.titleDetail}
+              </div>
+            {/if}
+            {#each p.communityNote.segments as segment}
+              {#if segment._type === 'text'}
+                {segment.text}
+              {:else if segment._type === 'url'}
+                <a href={segment.url}>{segment.text}</a>
+              {/if}
+            {/each}
           </div>
         {/if}
 
+        {#if p.quotedTweet}
+          {@render renderComment(p.quotedTweet, c.id)}
+        {/if}
+
         {#if p.media}
-          <div>
-            {#each p.media as m (m.id_str)}
-              {@render renderMedia(m)}
-            {/each}
-          </div>
+          {#each p.media as m (m.id_str)}
+            {@render renderMedia(m)}
+          {/each}
         {/if}
       {/each}
 
@@ -796,8 +854,8 @@ p.p-last-line {
 }
 
 .comment-quoted {
-  margin: 0.5em 0 0 0;
-  border: 1.5px solid var(--brand-color);
+  margin: 0.5em 0;
+  border: 1.5px solid var(--text-color);
 }
 
 .comment-header * {
@@ -981,5 +1039,12 @@ hr {
 .card-description {
   font-size: 0.8em;
   color: var(--meta-color);
+}
+.community-note {
+  border: 1.5px solid var(--meta-color);
+  border-radius: 6px;
+  padding: 0.5em;
+  margin: 1em 0;
+  background-color: var(--comment-bg-color);
 }
 </style>

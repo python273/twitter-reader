@@ -159,7 +159,8 @@ const groupedBlocks = $derived.by(() => {
       {:else if entity.type === 'TWEET'}
         {@const tweet = tweets.find(t => t.id === entity.data.tweetId)}
         {#if tweet}
-          {@render renderComment(tweet, `article-entity-${entity.data.entityKey}`)}
+          {@const renderKey = entity.data.entityKey ?? entity.data.tweetId ?? group.key}
+          {@render renderComment(tweet, `article-entity-${renderKey}`)}
         {:else}
           <div style="color: red;">Tweet not found: {entity.data.tweetId}</div>
         {/if}

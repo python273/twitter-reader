@@ -45,11 +45,16 @@ function onKeyDown(e) {
   if (e.target.matches('input, textarea, video, [contenteditable]')) {
     return
   }
-  const hot = (combo) => isPressed(e, combo)
+  const hot = (combo) => {
+    const r = isPressed(e, combo)
+    if (r) {
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
+    return r
+  }
 
   if (hot('j') || hot('k')) {
-    e.preventDefault()
-
     const currentCommentEl = document.activeElement.closest('.comment')
     let currentIndex = -1
     if (currentCommentEl) {
@@ -67,7 +72,6 @@ function onKeyDown(e) {
 
     focusComment(nextIndex)
   } else if (hot('h') || hot('shift+h')) {
-    e.preventDefault()
     const currentCommentEl = document.activeElement.closest('.comment')
     if (!currentCommentEl) return
 
@@ -85,7 +89,6 @@ function onKeyDown(e) {
       }
     }
   } else if (hot('n')) {
-    e.preventDefault()
     const currentCommentEl = document.activeElement.closest('.comment')
     if (!currentCommentEl) return
 

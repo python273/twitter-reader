@@ -66,8 +66,8 @@ def find_all_users(data):
 
 
 def find_article_referenced_tweets(data):
-    q = find_dicts_deep(data, lambda d: 'entityKey' in d and 'tweetId' in d)
-    return list(set(i['tweetId'] for i in q))
+    q = find_dicts_deep(data, lambda d: 'tweetId' in d)
+    return list({i['tweetId'] for i in q if isinstance(i.get('tweetId'), str)})
 
 
 async def load_tweets_by_ids(session: httpx.AsyncClient, tweet_ids: list[str]):
