@@ -107,8 +107,9 @@ function parseTextEntities(origT) {
 
   const allEntities = [
     ...entities.user_mentions.map(i => ({...i, _type: 'user_mention'})),
-    ...entities.urls.map(i => ({...i, _type: 'url'})),
-    ...entities.hashtags.map(i => ({...i, _type: 'hashtag'})),
+    // can be undefined for note tweet
+    ...(entities.urls || []).map(i => ({...i, _type: 'url'})),
+    ...(entities.hashtags || []).map(i => ({...i, _type: 'hashtag'})),
     ...richtextTags.map(i => ({...i, _type: 'rich'})),
     ...(noteTweet?.media?.inline_media || []).map(m => ({
       _type: 'media',
@@ -363,7 +364,8 @@ const convertTweet = (origT, usersById) => {
     card: parseCard(origT.card),
     parts: [],
     quotedTweet: null,
-    repliedTweet: origT._quoted ? convertTweet(origT._quoted, usersById) : null,
+    // only present for non-main-tweet replies, shown as quotes
+    repliedTweet: origT._repliedNonMain ? convertTweet(origT._repliedNonMain, usersById) : null,
 
     article: origT.article ? origT.article.article_results.result : null,
     communityNote: parseBirdwatchPivot(origT.birdwatch_pivot),
@@ -423,25 +425,22 @@ const fetchData = async () => {
   }
   threadTree = threadTree.map(t => convertTweet(t, usersById))
 
-  window.document.title = `${threadTree[0].visibleRawText} | @${threadTree[0].username} | Twitter Reader`
+  const titleText = threadTree[0].visibleRawText
+  const croppedTitle = titleText.length > 150 ? `${titleText.slice(0, 147).trim()}...` : titleText
+  window.document.title = `${croppedTitle} | @${threadTree[0].username} | Twitter Reader`
 
-  // This stack holds information about the ancestors of the current tweet.
-  // It's indexed by the original depth (1-based), so we can think of
-  // ancestorStack[d] as the info for the tweet at depth d in the current path.
   const ancestorStack = []
-
   for(const t of threadTree) {
-    const originalDepth = t.depth
-    ancestorStack.length = originalDepth
+    ancestorStack.length = t.depth + 1
     t.pad = ancestorStack.slice(1).map(ancestor => ({
       byBgColor: ancestor.byBgColor,
       sameUser: ancestor.username === t.username,
     }))
 
-    ancestorStack[originalDepth] = { byBgColor: t.byBgColor, username: t.username }
+    ancestorStack[t.depth] = { byBgColor: t.byBgColor, username: t.username }
 
-    // The rendered depth is 0-based (top-level tweets have no indent).
-    t.depth = Math.max(0, originalDepth - 1)
+    // Display depth: removing pad of top level tweets.
+    t.ddepth = Math.max(0, t.depth - 1)
   }
 
   data = threadTree
@@ -510,7 +509,7 @@ onMount(fetchData)
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div id="comment-{c.id}{quotedId ? `-quoted-${quotedId}` : ''}"
     class='comment'
-    class:comment-top-level={c.depth === 0}
+    class:comment-top-level={c.ddepth === 0}
     class:comment-blocked={c.collapsed && c.user.rating < -10}
     class:comment-quoted={quotedId}
     tabindex={!quotedId ? 0 : undefined}
@@ -690,7 +689,7 @@ onMount(fetchData)
     {:else}
       <div style="margin-left: calc(1.8em + 6px)"></div>
     {/if}
-    {#each {length: c.depth} as _, i}
+    {#each {length: c.ddepth} as _, i}
       <div class='pad' style="background: {c.pad[i].byBgColor};">
         {#if c.pad[i].sameUser}
           <div
@@ -787,6 +786,8 @@ p.p-last-line {
 .avatar {
   width: 1.8em;
   height: 1.8em;
+  min-width: 1.8em;
+  min-height: 1.8em;
   border-radius: 50%;
   margin: 7px 6px 0 0;
   background-color: var(--meta-color);
@@ -856,6 +857,7 @@ p.p-last-line {
 .comment-quoted {
   margin: 0.5em 0;
   border: 1.5px solid var(--text-color);
+  box-shadow: none;
 }
 
 .comment-header * {

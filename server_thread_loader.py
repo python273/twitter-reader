@@ -18,12 +18,7 @@ queued_tasks = set()          # store thread_id strings
 currently_processing = set()  # store thread_id strings
 
 
-def is_task_active(thread_id):
-    with state_lock:
-        return thread_id in queued_tasks or thread_id in currently_processing
-
-
-def add_task(thread_id, limit_requests=None):
+def upsert_task(thread_id, limit_requests=None):
     with state_lock:
         print(task_queue, queued_tasks)
         if thread_id in queued_tasks or thread_id in currently_processing:
@@ -106,7 +101,7 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                     self.end_headers()
                     return
 
-                add_task(thread_id, int(limit_requests) if limit_requests else None)
+                upsert_task(thread_id, int(limit_requests) if limit_requests else None)
 
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html; charset=utf-8')

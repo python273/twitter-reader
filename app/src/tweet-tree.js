@@ -45,7 +45,7 @@ function partitionRepliesDeep(tweets, curr, _thread = null, _replies = null) {
   for (const r of otherAuthorReplies) {
     let replyToAdd = r
     if (!is_first_call) {
-      replyToAdd = { ...r, _quoted: curr }
+      replyToAdd = { ...r, _repliedNonMain: curr }
     }
     _replies.push(replyToAdd)
   }

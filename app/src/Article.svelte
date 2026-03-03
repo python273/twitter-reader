@@ -25,9 +25,13 @@ function preprocessBlock(block, entityMapArray) {
     return [{ type: 'atomic', entity }]
   }
   const text = block.text || ""
+  const entityRanges = (block.entityRanges ?? []).filter(r => {
+    const entity = (entityMapArray.find(e => e.key === String(r.key)))?.value
+    return entity?.type !== 'TWEMOJI'
+  })
   const allRangesPoints = [
     ...(block.inlineStyleRanges ?? []).flatMap(r => [r.offset, r.offset + r.length]),
-    ...(block.entityRanges ?? []).flatMap(r => [r.offset, r.offset + r.length]),
+    ...entityRanges.flatMap(r => [r.offset, r.offset + r.length]),
     ...(block.data?.mentions ?? []).flatMap(m => [m.fromIndex, m.toIndex])
   ]
   const sortedUniquePoints = [...new Set([0, text.length, ...allRangesPoints])]
@@ -45,7 +49,7 @@ function preprocessBlock(block, entityMapArray) {
       .filter(r => r.offset <= start && (r.offset + r.length) >= end)
       .map(r => r.style)
 
-    const activeEntityRange = (block.entityRanges ?? []).find(r => r.offset <= start && (r.offset + r.length) >= end)
+    const activeEntityRange = entityRanges.find(r => r.offset <= start && (r.offset + r.length) >= end)
     const entity = activeEntityRange
       ? (entityMapArray.find(e => e.key === String(activeEntityRange.key)))?.value
       : null
@@ -58,9 +62,43 @@ function preprocessBlock(block, entityMapArray) {
   return segments
 }
 
-function getMediaUrl(mediaId) {
-  const media = article.media_entities.find(m => m.media_id === mediaId)
-  return media?.media_info?.original_img_url
+function getMediaData(mediaId) {
+  const media = article.media_entities?.find(m => m.media_id === mediaId)
+  const info = media?.media_info
+  if (!info) return null
+
+  if (info.__typename === 'ApiImage' && info.original_img_url) {
+    return {
+      type: 'image',
+      src: info.original_img_url,
+      width: info.original_img_width,
+      height: info.original_img_height,
+    }
+  }
+
+  const preview = info.preview_image
+  const variants = info.variants || []
+  const mp4 = variants.find(v => v.content_type === 'video/mp4') || variants[0]
+  if (mp4?.url) {
+    return {
+      type: 'video',
+      src: mp4.url,
+      poster: preview?.original_img_url,
+      width: preview?.original_img_width,
+      height: preview?.original_img_height,
+    }
+  }
+
+  if (preview?.original_img_url) {
+    return {
+      type: 'image',
+      src: preview.original_img_url,
+      width: preview.original_img_width,
+      height: preview.original_img_height,
+    }
+  }
+
+  return null
 }
 
 const processedArticleBlocks = $derived((article.content_state?.blocks || []).map(block => ({
@@ -147,10 +185,14 @@ const groupedBlocks = $derived.by(() => {
         <pre><code>{entity.data.markdown}</code></pre>
       {:else if entity.type === 'MEDIA' && entity.data.mediaItems && entity.data.mediaItems[0]}
         {@const mediaItem = entity.data.mediaItems[0]}
-        {@const imgUrl = getMediaUrl(mediaItem.mediaId)}
-        {#if imgUrl}
+        {@const media = getMediaData(mediaItem.mediaId)}
+        {#if media}
           <div>
-            <img src={imgUrl} alt={entity.data.caption || ''} />
+            {#if media.type === 'image'}
+              <img class="article-media" src={media.src} width={media.width} height={media.height} alt={entity.data.caption || ''} />
+            {:else}
+              <video class="article-media" src={media.src} poster={media.poster} width={media.width} height={media.height} muted autoplay loop playsinline preload="metadata"></video>
+            {/if}
             {#if entity.data.caption}<p style="color: var(--meta-color); margin-top: 0;"><small>{entity.data.caption}</small></p>{/if}
           </div>
         {/if}
@@ -236,6 +278,13 @@ li {
 }
 img {
   max-width: 100%;
+}
+video {
+  max-width: 100%;
+}
+.article-media {
+  max-width: 100%;
+  height: auto;
 }
 h1, h2, h3, h4, h5, h6 {
   border-left: 3px solid var(--text-color);

@@ -58,6 +58,24 @@ button {
   background: inherit;
 }
 
+input, textarea, select {
+  font-size: 1em;
+  border: 1px solid var(--text-color);
+  border-radius: 4px;
+  padding: 1px 3px;
+  margin: 5px;
+  background-color: var(--comment-bg-color);
+  color: var(--text-color);
+  accent-color: var(--brand-color);
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--brand-color);
+}
+
+input[type=checkbox] {
+  margin: 0;
+}
+
 .ff-mono {
   font-family: monospace;
 }
@@ -73,3 +91,5 @@ button {
 .ai-baseline {
   align-items: baseline;
 }
+
+hr { border: 1px solid var(--text-color); }
