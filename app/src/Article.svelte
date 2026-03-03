@@ -25,6 +25,7 @@ function preprocessBlock(block, entityMapArray) {
     return [{ type: 'atomic', entity }]
   }
   const text = block.text || ""
+  const textByCodePoint = Array.from(text)
   const entityRanges = (block.entityRanges ?? []).filter(r => {
     const entity = (entityMapArray.find(e => e.key === String(r.key)))?.value
     return entity?.type !== 'TWEMOJI'
@@ -34,8 +35,8 @@ function preprocessBlock(block, entityMapArray) {
     ...entityRanges.flatMap(r => [r.offset, r.offset + r.length]),
     ...(block.data?.mentions ?? []).flatMap(m => [m.fromIndex, m.toIndex])
   ]
-  const sortedUniquePoints = [...new Set([0, text.length, ...allRangesPoints])]
-    .filter(p => p >= 0 && p <= text.length)
+  const sortedUniquePoints = [...new Set([0, textByCodePoint.length, ...allRangesPoints])]
+    .filter(p => p >= 0 && p <= textByCodePoint.length)
     .sort((a, b) => a - b)
 
   const segments = []
@@ -44,7 +45,7 @@ function preprocessBlock(block, entityMapArray) {
     const end = sortedUniquePoints[i + 1]
     if (start >= end) continue
 
-    const segmentText = text.substring(start, end)
+    const segmentText = textByCodePoint.slice(start, end).join('')
     const activeStyles = (block.inlineStyleRanges ?? [])
       .filter(r => r.offset <= start && (r.offset + r.length) >= end)
       .map(r => r.style)
@@ -191,7 +192,7 @@ const groupedBlocks = $derived.by(() => {
             {#if media.type === 'image'}
               <img class="article-media" src={media.src} width={media.width} height={media.height} alt={entity.data.caption || ''} />
             {:else}
-              <video class="article-media" src={media.src} poster={media.poster} width={media.width} height={media.height} muted autoplay loop playsinline preload="metadata"></video>
+              <video class="article-media" src={media.src} poster={media.poster} width={media.width} height={media.height} controls muted autoplay loop playsinline preload="metadata"></video>
             {/if}
             {#if entity.data.caption}<p style="color: var(--meta-color); margin-top: 0;"><small>{entity.data.caption}</small></p>{/if}
           </div>

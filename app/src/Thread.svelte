@@ -8,11 +8,15 @@ import Article from './Article.svelte'
 import ThreadHotkeys from './ThreadHotkeys.svelte'
 import ThreadNarrator from './ThreadNarrator.svelte'
 import ColorScroll from './ColorScroll.svelte'
+import { createScriptManager } from './ThreadScript.svelte.js';
+import ThreadScript from './ThreadScript.svelte';
 
 let currentlyReading = $state(null)
 let narratorPlaying = $state(false)
 let threadNarrator = $state()
 
+let scriptManager = createScriptManager()
+window._scriptManager = scriptManager
 
 function collapse(event, comment, quotedId) {
   if (quotedId !== undefined) {
@@ -78,6 +82,33 @@ function convertRichtextTagIndices(originalString, tags) {
   return out
 }
 
+function segmentRichtextTags(tags, textLength) {
+  // Split overlapping rich ranges into non-overlapping segments with merged styles
+  if (!tags.length) return tags
+  const points = [...new Set([
+    0,
+    textLength,
+    ...tags.flatMap(t => t.indices)
+  ])]
+    .filter(p => p >= 0 && p <= textLength)
+    .sort((a, b) => a - b)
+
+  const out = []
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]
+    const b = points[i + 1]
+    if (a >= b) continue
+
+    const styles = [...new Set(tags
+      .filter(t => t.indices[0] <= a && t.indices[1] >= b)
+      .flatMap(t => t.richtext_types || []))]
+
+    if (!styles.length) continue
+    out.push({ indices: [a, b], richtext_types: styles })
+  }
+  return out
+}
+
 function parseTextEntities(origT) {
   // Parse tweet entities and split text to paragraphs
   const t = origT.legacy
@@ -98,6 +129,7 @@ function parseTextEntities(origT) {
       noteTweet['text'],
       noteTweet?.richtext?.richtext_tags || []
     )
+    richtextTags = segmentRichtextTags(richtextTags, text.length)
   } else {
     text = Array.from(t['full_text'])
     entities = t.entities
@@ -443,6 +475,7 @@ const fetchData = async () => {
     t.ddepth = Math.max(0, t.depth - 1)
   }
 
+  threadTree = await scriptManager.applyPostprocessThread(threadTree)
   data = threadTree
 }
 
@@ -451,6 +484,7 @@ onMount(fetchData)
 
 {#if data.length}
 <div class="thread-page">
+<ThreadScript scriptManager={scriptManager} />
 <ThreadNarrator bind:this={threadNarrator} {data} bind:currentlyReading bind:narratorPlaying />
 
 <ColorScroll {data} />
