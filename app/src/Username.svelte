@@ -1,6 +1,8 @@
 <script>
+import { onMount } from 'svelte'
 import { timeSince } from "./utils"
 import Portal from './Portal.svelte'
+import { getUserData, updateUserNote as updateUserNoteDb, updateUserRating as updateUserRatingDb } from './db'
 
 let { data, color, bgColor } = $props()
 
@@ -11,30 +13,25 @@ let ref = $state(null)
 let popup = $state(false)
 let popupStyle = $state('')
 
-const userKey = `ur-${data.id}`
-const userNoteKey = `ur-n-${data.id}`
 let note = $state('')
-let userRating = $state(9999)
-let ratingColor = $state('')
+let userRating = $state(0)
+const ratingColor = $derived(userRating === 0 ? '' : userRating < 0 ? 'rgb(238, 0, 0)' : 'rgb(0, 206, 90)')
 
-function updateNote() {
-  note = localStorage[userNoteKey] || ''
+async function loadUser() {
+  const user = await getUserData(data.id)
+  note = user?.note || ''
+  userRating = user?.rating || 0
 }
-updateNote()
 
-window.addEventListener('storage', (e) => {
-  if (e.key === userNoteKey) updateNote()
-})
+onMount(loadUser)
+
 window.addEventListener('c-update-user-note', (e) => {
-  if (e.key === userNoteKey) updateNote()
+  if (e.detail?.userId !== data.id) return
+  note = e.detail.note || ''
 }, false)
 
-function onNoteChange() {
-  localStorage[userNoteKey] = note
-
-  const event = new Event('c-update-user-note')
-  event.key = userNoteKey
-  window.dispatchEvent(event)
+async function onNoteChange() {
+  await updateUserNoteDb(data.id, note)
 }
 
 function onNoteKeydown(event) {
@@ -44,35 +41,14 @@ function onNoteKeydown(event) {
   }
 }
 
-function updateDisplayedRating() {
-  userRating = (parseInt(localStorage[userKey], 10) || 0)
-  if (userRating === 0) {
-    ratingColor = ''
-  } else if (userRating < 0) {
-    ratingColor = 'rgb(238, 0, 0)'
-  } else {
-    ratingColor = 'rgb(0, 206, 90)'
-  }
-}
-updateDisplayedRating()
-
-window.addEventListener('storage', (e) => {
-  if (e.key === userKey) updateDisplayedRating()
-})
 window.addEventListener('c-update-user-rating', (e) => {
-  if (e.key === userKey) updateDisplayedRating()
+  if (e.detail?.userId !== data.id) return
+  userRating = e.detail.rating || 0
 }, false)
 
-const updateRating = (diff) => {
-  const current = (parseInt(localStorage[userKey], 10) || 0)
-  localStorage[userKey] = current + diff
-
-  const event = new Event('c-update-user-rating')
-  event.key = userKey
-  event.userId = data.id
-  event.prevRating = current
-  event.newRating = current + diff
-  window.dispatchEvent(event)
+const updateRating = async (diff) => {
+  const user = await updateUserRatingDb(data.id, diff)
+  userRating = user?.rating || 0
 }
 
 const togglePopup = () => {

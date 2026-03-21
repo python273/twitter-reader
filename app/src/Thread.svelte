@@ -1,7 +1,8 @@
 <script>
 import { onMount } from 'svelte'
 import { timeSince, getUsernameColor } from './utils'
-import { createTweetTree } from './tweet-tree.js'
+import { createTweetTree, createTweetTreeMultiRoot } from './tweet-tree.js'
+import { getUsersData } from './db'
 import Username from './Username.svelte'
 import UserNote from './UserNote.svelte'
 import Article from './Article.svelte'
@@ -50,9 +51,9 @@ $effect(() => {
 })
 
 window.addEventListener('c-update-user-rating', (e) => {
-  if (!(e.prevRating >= -10 && e.newRating < -10)) return
-  const uid = e.userId
-  usersById[uid].rating = e.newRating
+  const { userId: uid, prevRating, newRating } = e.detail || {}
+  if (!uid || !(prevRating >= -10 && newRating < -10) || !usersById[uid]) return
+  usersById[uid].rating = newRating
   usersById = usersById
 
   for (let t of data) {
@@ -420,10 +421,10 @@ const convertTweet = (origT, usersById) => {
   return obj
 }
 
-const convertUser = (u) => {
+const convertUser = (u, userData) => {
   return {
     id: u.rest_id,
-    rating: parseInt(localStorage[`ur-${u.rest_id}`], 10),
+    rating: userData?.rating || 0,
     createdAt: new Date(u.legacy.created_at || u.core.created_at),
     username: u.legacy.screen_name || u.core.screen_name,
     name: u.legacy.name || u.core.name,
@@ -442,16 +443,23 @@ const fetchData = async () => {
 
   usersById = {}
   const users = thread.users_by_id ? Object.values(thread.users_by_id) : thread.users
+  const usersData = await getUsersData(users.map(u => u.rest_id))
   for (let u of users) {
-    usersById[u.rest_id] = convertUser(u)
+    usersById[u.rest_id] = convertUser(u, usersData[u.rest_id])
   }
 
   let threadTree
-  if (thread.tweets) {
-    opTweetUserId = thread.tweets.find(i => i.rest_id === threadId).legacy.user_id_str
+  let keepTopLevelDepth = false
+  if (thread.tweets_multiroot) {  // multiple threads, finds all roots
+    opTweetUserId = 0
+    keepTopLevelDepth = true
+    threadTree = createTweetTreeMultiRoot(thread.tweets_multiroot)
+    tweets = thread.tweets_multiroot.map(t => convertTweet(t, usersById))
+  } else if (thread.tweets) {  // single thread
+    opTweetUserId = thread.tweets.find(i => i.rest_id === threadId)?.legacy?.user_id_str
     threadTree = createTweetTree(thread.tweets, threadId)
     tweets = thread.tweets.map(t => convertTweet(t, usersById))
-  } else {
+  } else {  // prebuilt tree
     threadTree = thread.tree  // hmm, fallback for feed
     tweets = thread.tree.map(t => convertTweet(t, usersById))
   }
@@ -464,15 +472,17 @@ const fetchData = async () => {
   const ancestorStack = []
   for(const t of threadTree) {
     ancestorStack.length = t.depth + 1
-    t.pad = ancestorStack.slice(1).map(ancestor => ({
+    const ancestors = ancestorStack.slice(0, t.depth).filter(Boolean)
+    // Display depth: removing pad of top level tweets.
+    const visibleAncestors = keepTopLevelDepth ? ancestors : ancestors.slice(1)
+    t.pad = visibleAncestors.map(ancestor => ({
       byBgColor: ancestor.byBgColor,
       sameUser: ancestor.username === t.username,
     }))
 
     ancestorStack[t.depth] = { byBgColor: t.byBgColor, username: t.username }
 
-    // Display depth: removing pad of top level tweets.
-    t.ddepth = Math.max(0, t.depth - 1)
+    t.ddepth = t.pad.length
   }
 
   threadTree = await scriptManager.applyPostprocessThread(threadTree)

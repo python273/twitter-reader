@@ -18,5 +18,8 @@
     "globals": "^16.0.0",
     "svelte": "^5.20.2",
     "vite": "^6.2.0"
+  },
+  "dependencies": {
+    "idb": "^8.0.3"
   }
 }

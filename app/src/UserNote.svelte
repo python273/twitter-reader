@@ -1,19 +1,19 @@
 <script>
+import { onMount } from 'svelte'
+import { getUserData } from './db'
+
 let { id } = $props()
 
-const userNoteKey = `ur-n-${id}`
 let note = $state('')
 
-function updateNote() {
-  note = localStorage[userNoteKey] || ''
+async function updateNote() {
+  note = (await getUserData(id))?.note || ''
 }
-updateNote()
 
-window.addEventListener('storage', (e) => {
-  if (e.key === userNoteKey) updateNote()
-})
+onMount(updateNote)
+
 window.addEventListener('c-update-user-note', (e) => {
-  if (e.key === userNoteKey) updateNote()
+  if (e.detail?.userId === id) note = e.detail.note || ''
 }, false)
 </script>
 

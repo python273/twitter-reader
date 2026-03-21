@@ -5,6 +5,6 @@ name = "pypi"
 
 [packages]
 httpx = {extras = ["http2", "socks", "brotli"], version = "*"}
-xclienttransaction = "==1.0.0"
+xclienttransaction = "==1.0.2"
 
 [dev-packages]

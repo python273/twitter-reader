@@ -98,3 +98,44 @@ export function createTweetTree(tweets, threadTweetId) {
 
   return processReplies(tweets, mainTweet, authorId)
 }
+
+export function createTweetTreeMultiRoot(tweets) {
+  const tweetById = {}
+  for (const t of tweets) {
+    tweetById[t.rest_id] = t
+  }
+
+  const roots = tweets
+    .filter(t => {
+      const parentId = t.legacy.in_reply_to_status_id_str
+      return !parentId || !tweetById[parentId]
+    })
+    .sort((a, b) => b.rest_id.localeCompare(a.rest_id))
+
+  const out = []
+  const seen = new Set()
+
+  const appendSubtree = (rootTweet) => {
+    const subtree = processReplies(tweets, rootTweet, rootTweet.legacy.user_id_str, 0, [])
+    for (const item of subtree) {
+      if (seen.has(item.rest_id)) continue
+      seen.add(item.rest_id)
+      for (const part of item._parts || []) {
+        seen.add(part.rest_id)
+      }
+      out.push(item)
+    }
+  }
+
+  for (const root of roots) {
+    if (seen.has(root.rest_id)) continue
+    appendSubtree(root)
+  }
+
+  for (const tweet of tweets) {
+    if (seen.has(tweet.rest_id)) continue
+    appendSubtree(tweet)
+  }
+
+  return out
+}
