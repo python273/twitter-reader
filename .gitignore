@@ -1,6 +1,6 @@
 app/public/tree_*
 **/node_modules
-thread_*.json
+thread_*.json*
 **/.DS_Store
 **/__pycache__
 

@@ -48,7 +48,7 @@ async def init_trid(headers={}):
         return
     session = httpx.AsyncClient(headers={**generate_headers(), **headers})
 
-    home_page = await session.get(url="https://x.com")
+    home_page = await session.get(url="https://x.com/home")
     home_page_response = bs4.BeautifulSoup(home_page.content, 'html.parser')
 
     ondemand_file_url = get_ondemand_file_url(response=home_page_response)

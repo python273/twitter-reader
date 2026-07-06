@@ -139,7 +139,7 @@ function parseTextEntities(origT) {
   }
 
   const allEntities = [
-    ...entities.user_mentions.map(i => ({...i, _type: 'user_mention'})),
+    ...(entities.user_mentions || []).map(i => ({...i, _type: 'user_mention'})),
     // can be undefined for note tweet
     ...(entities.urls || []).map(i => ({...i, _type: 'url'})),
     ...(entities.hashtags || []).map(i => ({...i, _type: 'hashtag'})),
@@ -322,6 +322,24 @@ function parseBirdwatchPivot(pivot) {
   return {title, titleDetail, segments}
 }
 
+function getGrokTranslation(origT) {
+  const t = origT?.grok_translated_post_with_availability
+  if (!t?.is_available) return null
+  const d = t.data
+  if (d?.destination_language !== 'en') return null
+  const { paragraphs } = parseTextEntities({
+    legacy: {
+      full_text: d.translation,
+      display_text_range: [0, Array.from(d.translation).length],
+      entities: d.entities || {},
+    }
+  })
+  return {
+    sourceLanguage: d.source_language,
+    paragraphs,
+  }
+}
+
 const convertTweet = (origT, usersById) => {
   if (origT['__typename'] !== 'Tweet') {
     console.log(origT)
@@ -402,6 +420,8 @@ const convertTweet = (origT, usersById) => {
 
     article: origT.article ? origT.article.article_results.result : null,
     communityNote: parseBirdwatchPivot(origT.birdwatch_pivot),
+    grokTranslation: getGrokTranslation(origT),
+    showTranslated: true,
   }
 
   if (origT._parts) {  // thread tweets group
@@ -438,8 +458,17 @@ const convertUser = (u, userData) => {
   }
 }
 
+async function fetchThreadData(threadId) {
+  let r = await fetch(`/tree_${threadId}.json.gz`)
+  try {
+    return await r.json()
+  } catch (_) {}
+  r = await fetch(`/tree_${threadId}.json`)
+  return await r.json()
+}
+
 const fetchData = async () => {
-  const thread = await (await fetch(`/tree_${threadId}.json`)).json()
+  const thread = await fetchThreadData(threadId)
 
   usersById = {}
   const users = thread.users_by_id ? Object.values(thread.users_by_id) : thread.users
@@ -487,6 +516,10 @@ const fetchData = async () => {
 
   threadTree = await scriptManager.applyPostprocessThread(threadTree)
   data = threadTree
+}
+
+function toggleTranslated(p) {
+  p.showTranslated = !p.showTranslated
 }
 
 onMount(fetchData)
@@ -547,6 +580,36 @@ onMount(fetchData)
   {:else}
     <pre>{JSON.stringify(m)}</pre>
   {/if}
+{/snippet}
+
+{#snippet renderParagraphs(paragraphs)}
+  {#each paragraphs as paragraph, paragraph_index}
+    <p
+      class="narrator-paragraph"
+      class:quote={paragraph.type === 'quote'}
+      class:p-last-line={paragraph_index == (paragraphs.length-1)}
+    >
+      {#each paragraph as part}
+        {#if part._type === 'text'}
+          {#each part.text as line, line_i}
+            {line}{#if line_i < (part.text.length-1)}<span style="display: none;" data-narrator-pause>&nbsp;.&nbsp;</span><br/>{/if}
+          {/each}
+        {:else if part._type === 'user_mention'}
+          <a href={`https://x.com/${part.username}`}>{part.text}</a>
+        {:else if part._type === 'url'}
+          <a href={part.url}>{part.urldecoded}</a>
+        {:else if part._type === 'hashtag'}
+          <a href={`https://x.com/hashtag/${part.hashtag}`}>{part.text}</a>
+        {:else if part._type === 'rich'}
+          <span class={part.richtext_types.map(t => 'rich-' + t.toLowerCase()).join(' ')}>
+            {part.text}
+          </span>
+        {:else if part._type === 'media' && part.media}
+          {@render renderMedia(part.media)}
+        {/if}
+      {/each}
+    </p>
+  {/each}
 {/snippet}
 
 {#snippet renderComment(c, quotedId)}
@@ -619,33 +682,19 @@ onMount(fetchData)
           </div>
         {/if}
 
-        {#each p.paragraphs as paragraph, paragraph_index}
-          <p
-            class="narrator-paragraph"
-            class:quote={paragraph.type === 'quote'}
-            class:p-last-line={paragraph_index == (p.paragraphs.length-1)}
-          >
-            {#each paragraph as part}
-              {#if part._type === 'text'}
-                {#each part.text as line, line_i}
-                  {line}{#if line_i < (part.text.length-1)}<span style="display: none;" data-narrator-pause>&nbsp;.&nbsp;</span><br/>{/if}
-                {/each}
-              {:else if part._type === 'user_mention'}
-                <a href={`https://x.com/${part.username}`}>{part.text}</a>
-              {:else if part._type === 'url'}
-                <a href={part.url}>{part.urldecoded}</a>
-              {:else if part._type === 'hashtag'}
-                <a href={`https://x.com/hashtag/${part.hashtag}`}>{part.text}</a>
-              {:else if part._type === 'rich'}
-                <span class={part.richtext_types.map(t => 'rich-' + t.toLowerCase()).join(' ')}>
-                  {part.text}
-                </span>
-              {:else if part._type === 'media' && part.media}
-                {@render renderMedia(part.media)}
-              {/if}
-            {/each}
-          </p>
-        {/each}
+        {#if p.grokTranslation}
+          <div class="narrator-skip">
+            <button class="btn-text" style="font-size: 0.85em;" onclick={() => toggleTranslated(p)}>
+              {p.showTranslated ? 'Show original' : 'Show translation'}
+            </button>
+            {#if p.showTranslated}
+              <span class="meta-gray" style="font-size: 0.85em;">Translated from {p.grokTranslation.sourceLanguage}</span>
+            {/if}
+          </div>
+          {@render renderParagraphs(p.showTranslated ? p.grokTranslation.paragraphs : p.paragraphs)}
+        {:else}
+          {@render renderParagraphs(p.paragraphs)}
+        {/if}
 
         {#if p.poll}
           <div class="poll">

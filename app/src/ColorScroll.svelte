@@ -16,6 +16,7 @@ async function updateColorScroll(data) {
 
   for (let c of data) {
     c.collapsed
+    c.showTranslated
     const el = document.getElementById(`comment-${c.id}`)
     if (!el) {
       console.error(`Comment ${c.id} not found`)

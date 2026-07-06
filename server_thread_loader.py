@@ -39,10 +39,10 @@ def process_tasks():
 
         print(f"Processing thread {thread_id}")
         try:
-            tree_output = f"app/public/tree_{thread_id}.json"
+            tree_output = f"app/public/tree_{thread_id}.json.gz"
             Path("app/public").mkdir(parents=True, exist_ok=True)
 
-            cmd = ["python3", "load_thread_async.py"]
+            cmd = ["python3", "load_thread_async.py", "--gzip"]
             if limit_requests:
                 cmd.extend(["--limit-requests", str(limit_requests)])
             cmd.extend([thread_id, tree_output])
@@ -89,8 +89,8 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_error(400, "Invalid URL: could not extract thread ID")
                     return
 
-                tree_file = f"app/public/tree_{thread_id}.json"
-                limit_requests = qs.get('limit_requests', [None])[0]
+                tree_file = f"app/public/tree_{thread_id}.json.gz"
+                tree_file_legacy = f"app/public/tree_{thread_id}.json"
 
                 redirect_url = f"http://localhost:5000/#{thread_id}"
 
@@ -100,7 +100,13 @@ class MyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Location', redirect_url)
                     self.end_headers()
                     return
+                if os.path.exists(tree_file_legacy) and (time.time() - os.path.getmtime(tree_file_legacy) < 60):
+                    self.send_response(302)
+                    self.send_header('Location', redirect_url)
+                    self.end_headers()
+                    return
 
+                limit_requests = qs.get('limit_requests', [None])[0]
                 upsert_task(thread_id, int(limit_requests) if limit_requests else None)
 
                 self.send_response(200)

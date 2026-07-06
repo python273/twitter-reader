@@ -27,9 +27,9 @@ else
     THREAD_ID="$THREAD_INPUT"
 fi
 
-TREE_OUTPUT="app/public/tree_${THREAD_ID}.json"
+TREE_OUTPUT="app/public/tree_${THREAD_ID}.json.gz"
 
 mkdir -p app/public
 
-python3 load_thread_async.py "$THREAD_INPUT" "$TREE_OUTPUT"
+python3 load_thread_async.py --gzip "$THREAD_INPUT" "$TREE_OUTPUT"
 open --background "http://localhost:5000/#${THREAD_ID}"

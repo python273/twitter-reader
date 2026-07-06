@@ -1,5 +1,6 @@
 import collections
 from datetime import datetime, timedelta, UTC
+import gzip
 import json
 from pathlib import Path
 from pprint import pprint
@@ -70,6 +71,10 @@ def find_article_referenced_tweets(data):
     return list({i['tweetId'] for i in q if isinstance(i.get('tweetId'), str)})
 
 
+def find_thread_tombstones(response):
+    return find_dicts_deep(response, lambda d: d.get('__typename') == 'TweetTombstone')
+
+
 async def load_tweets_by_ids(session: httpx.AsyncClient, tweet_ids: list[str]):
     headers = {
         'content-type': 'application/json',
@@ -116,12 +121,12 @@ async def load_tweet(session: httpx.AsyncClient, tweet_id, cursor):
 
     params = {
         'variables': f'{{"focalTweetId":"{tweet_id}",{cursor_str}"with_rux_injections":false,"rankingMode":"Relevance","includePromotedContent":true,"withCommunity":true,"withQuickPromoteEligibilityTweetFields":true,"withBirdwatchNotes":true,"withVoice":true}}',
-        'features': '{"rweb_video_screen_enabled":false,"profile_label_improvements_pcf_label_in_post_enabled":true,"responsive_web_profile_redirect_enabled":false,"rweb_tipjar_consumption_enabled":false,"verified_phone_label_enabled":false,"creator_subscriptions_tweet_preview_api_enabled":true,"responsive_web_graphql_timeline_navigation_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"premium_content_api_read_enabled":false,"communities_web_enable_tweet_community_results_fetch":true,"c9s_tweet_anatomy_moderator_badge_enabled":true,"responsive_web_grok_analyze_button_fetch_trends_enabled":false,"responsive_web_grok_analyze_post_followups_enabled":true,"responsive_web_jetfuel_frame":true,"responsive_web_grok_share_attachment_enabled":true,"responsive_web_grok_annotations_enabled":true,"articles_preview_enabled":true,"responsive_web_edit_tweet_api_enabled":true,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":true,"view_counts_everywhere_api_enabled":true,"longform_notetweets_consumption_enabled":true,"responsive_web_twitter_article_tweet_consumption_enabled":true,"tweet_awards_web_tipping_enabled":false,"content_disclosure_indicator_enabled":true,"content_disclosure_ai_generated_indicator_enabled":true,"responsive_web_grok_show_grok_translated_post":false,"responsive_web_grok_analysis_button_from_backend":true,"post_ctas_fetch_enabled":true,"freedom_of_speech_not_reach_fetch_enabled":true,"standardized_nudges_misinfo":true,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":true,"longform_notetweets_rich_text_read_enabled":true,"longform_notetweets_inline_media_enabled":false,"responsive_web_grok_image_annotation_enabled":true,"responsive_web_grok_imagine_annotation_enabled":true,"responsive_web_grok_community_note_auto_translation_is_enabled":false,"responsive_web_enhance_cards_enabled":false}',
+        'features': '{"rweb_video_screen_enabled":false,"rweb_cashtags_enabled":true,"profile_label_improvements_pcf_label_in_post_enabled":true,"responsive_web_profile_redirect_enabled":false,"rweb_tipjar_consumption_enabled":false,"verified_phone_label_enabled":false,"creator_subscriptions_tweet_preview_api_enabled":true,"responsive_web_graphql_timeline_navigation_enabled":true,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":false,"premium_content_api_read_enabled":false,"communities_web_enable_tweet_community_results_fetch":true,"c9s_tweet_anatomy_moderator_badge_enabled":true,"responsive_web_grok_analyze_button_fetch_trends_enabled":false,"responsive_web_grok_analyze_post_followups_enabled":true,"rweb_cashtags_composer_attachment_enabled":true,"responsive_web_jetfuel_frame":true,"responsive_web_grok_share_attachment_enabled":true,"responsive_web_grok_annotations_enabled":true,"articles_preview_enabled":true,"responsive_web_edit_tweet_api_enabled":true,"rweb_conversational_replies_downvote_enabled":false,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":true,"view_counts_everywhere_api_enabled":true,"longform_notetweets_consumption_enabled":true,"responsive_web_twitter_article_tweet_consumption_enabled":true,"content_disclosure_indicator_enabled":true,"content_disclosure_ai_generated_indicator_enabled":true,"responsive_web_grok_show_grok_translated_post":true,"responsive_web_grok_analysis_button_from_backend":true,"post_ctas_fetch_enabled":false,"freedom_of_speech_not_reach_fetch_enabled":true,"standardized_nudges_misinfo":true,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":true,"longform_notetweets_rich_text_read_enabled":true,"longform_notetweets_inline_media_enabled":false,"responsive_web_grok_image_annotation_enabled":true,"responsive_web_grok_imagine_annotation_enabled":true,"responsive_web_grok_community_note_auto_translation_is_enabled":true,"responsive_web_enhance_cards_enabled":false}',
         'fieldToggles': '{"withArticleRichContentState":true,"withArticlePlainText":false,"withArticleSummaryText":true,"withArticleVoiceOver":true,"withGrokAnalyze":false,"withDisallowedReplyControls":false}',
     }
 
     r = await session.get(
-        'https://x.com/i/api/graphql/xIYgDwjboktoFeXe_fgacw/TweetDetail',
+        'https://x.com/i/api/graphql/jd3V43oDY9cY7obs1YMfbQ/TweetDetail',
         params=params,
         headers=headers,
         timeout=20.0,
@@ -191,6 +196,7 @@ async def load_tree(pool: AioPool, thread_id, limit_requests=None):
 
     loaded_tweets = {}  # id -> tweet
     loaded_users = {}  # id -> user
+    removed_tweets = {}  # id -> tombstone record
 
     expected_replies_count = collections.Counter()  # tweet id -> count
     got_replies_count = collections.Counter()
@@ -225,6 +231,7 @@ async def load_tree(pool: AioPool, thread_id, limit_requests=None):
             )])
             users = find_all_users(response)
             cursors = find_all_cursors(response)
+            tombstones = find_thread_tombstones(response)
             # print('CURSORS', cursors)
 
             for t in tweets:
@@ -250,6 +257,14 @@ async def load_tree(pool: AioPool, thread_id, limit_requests=None):
                     print('#rest_id', u)
                     continue
                 loaded_users[u['rest_id']] = u
+
+            for t in tombstones:
+                tid = t.get('rest_id') or t.get('entry_id')
+                if not tid:
+                    continue
+                if tid in removed_tweets:
+                    continue
+                removed_tweets[tid] = t
 
             cursors_terminated = [i['direction'] for i in find_dicts_deep(response, lambda d: d.get('type') == 'TimelineTerminateTimeline')]
             # print('Terminated cursors:', cursors_terminated)
@@ -294,6 +309,7 @@ async def load_tree(pool: AioPool, thread_id, limit_requests=None):
         'thread_tweet_id': thread_id,
         'tweets': list(loaded_tweets.values()),
         'users': list(loaded_users.values()),
+        'removed_tweets': list(removed_tweets.values()),
     }
 
 
@@ -413,6 +429,7 @@ async def main():
     parser.add_argument('thread_id_or_url', help='Thread ID or Twitter URL')
     parser.add_argument('output_path', help='Output JSON file path')
     parser.add_argument('--limit-requests', type=int, help='Maximum number of requests to make (default: no limit)')
+    parser.add_argument('--gzip', action='store_true', help='Compress output with gzip')
     args = parser.parse_args()
 
     input_arg = args.thread_id_or_url
@@ -473,7 +490,7 @@ async def main():
             print(f'Added {len(entity_tweets)} new tweets')
             thread['tweets'].extend(entity_tweets)
             
-            entity_users = find_all_users(entity_response)
+            entity_users = [u for u in find_all_users(entity_response) if 'rest_id' in u]
             existing_user_ids = {u['rest_id'] for u in thread['users']}
             new_users = [u for u in entity_users if u['rest_id'] not in existing_user_ids]
             
@@ -481,9 +498,14 @@ async def main():
             thread['users'].extend(new_users)
 
     temp_dir = os.path.dirname(output_path)
-    with tempfile.NamedTemporaryFile(mode='w', dir=temp_dir, suffix='.tmp', delete=False, encoding='utf-8') as temp_file:
-        json.dump(thread, temp_file, ensure_ascii=False)
-        temp_path = temp_file.name
+    if args.gzip:
+        temp_path = output_path + '.tmp'
+        with gzip.open(temp_path, 'wt', encoding='utf-8') as f:
+            json.dump(thread, f, ensure_ascii=False, separators=(',', ':'))
+    else:
+        with tempfile.NamedTemporaryFile(mode='w', dir=temp_dir, suffix='.tmp', delete=False, encoding='utf-8') as temp_file:
+            json.dump(thread, temp_file, ensure_ascii=False, separators=(',', ':'))
+            temp_path = temp_file.name
 
     shutil.move(temp_path, output_path)
 
