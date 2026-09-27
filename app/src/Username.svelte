@@ -71,6 +71,11 @@ const togglePopup = () => {
   >
     {username}
   </button>
+  {#if data.affiliation?.iconUrl}
+    <a class="affiliation" href={data.affiliation.url} title={data.affiliation.name}>
+      <img src={data.affiliation.iconUrl} alt="" />
+    </a>
+  {/if}
 
   <div class='rating'>
     <button onclick={() => updateRating(+1)}>+</button>
@@ -138,6 +143,21 @@ const togglePopup = () => {
   line-height: 1.1;
 
   user-select: text;
+}
+
+.affiliation {
+  color: var(--meta-color);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 3px;
+  text-decoration: none;
+}
+
+.affiliation img {
+  width: 1em;
+  height: 1em;
+  border-radius: 2px;
 }
 
 .userAbout {

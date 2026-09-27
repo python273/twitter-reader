@@ -33,7 +33,7 @@ def write_cache(items):
         pass
 
 
-async def init_trid(headers={}):
+async def init_trid(headers=None, cookies=None):
     global ct
     cached = read_cache()
     if cached and 'home_page' in cached and 'ondemand_file' in cached:
@@ -46,13 +46,15 @@ async def init_trid(headers={}):
             ondemand_file_response=ondemand_file_response
         )
         return
-    session = httpx.AsyncClient(headers={**generate_headers(), **headers})
+    async with httpx.AsyncClient(
+        headers={**generate_headers(), **(headers or {})},
+        cookies=cookies
+    ) as session:
+        home_page = await session.get(url="https://x.com/home")
+        home_page_response = bs4.BeautifulSoup(home_page.content, 'html.parser')
 
-    home_page = await session.get(url="https://x.com/home")
-    home_page_response = bs4.BeautifulSoup(home_page.content, 'html.parser')
-
-    ondemand_file_url = get_ondemand_file_url(response=home_page_response)
-    ondemand_file = await session.get(url=ondemand_file_url)
+        ondemand_file_url = get_ondemand_file_url(response=home_page_response)
+        ondemand_file = await session.get(url=ondemand_file_url)
     class Bla(bs4.BeautifulSoup):
         text = ondemand_file.text
     ondemand_file_response = Bla()

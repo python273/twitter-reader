@@ -145,6 +145,17 @@ async def load_tweet(session: httpx.AsyncClient, tweet_id, cursor):
         except Exception:
             print('json decode error', r.content)
 
+        # Cloudflare can return an HTML 1015 page instead of X's normal JSON
+        # rate-limit response.  Its Retry-After header is the authoritative
+        # cooldown; without this branch it falls through to the 24-hour
+        # fallback below because the X rate-limit headers are absent.
+        if 'cloudflare' in r.headers.get('server', '').lower() or 'cf-ray' in r.headers:
+            try:
+                retry_after = max(1, int(r.headers.get('retry-after', '60')))
+            except ValueError:
+                retry_after = 60
+            raise RateLimitError(datetime.now(UTC) + timedelta(seconds=retry_after))
+
         if r.headers.get('x-rate-limit-remaining') == '0':
             raise RateLimitError(
                 datetime.fromtimestamp(int(r.headers['x-rate-limit-reset']), tz=UTC)
@@ -457,7 +468,8 @@ async def main():
         print('Create accounts.json with cookies from browser: {"accounts": [{"cookies": {...}}, ...]}')
         exit(1)
 
-    await init_trid({'User-Agent': USERAGENT})
+    cookies = next((a['cookies'] for a in accounts_data['accounts'] if a.get('cookies')), None)
+    await init_trid({'User-Agent': USERAGENT}, cookies)
 
     manager = SessionManager(accounts_data['accounts'])
     worker_args = [(worker_id, manager) for worker_id in range(num_workers)]

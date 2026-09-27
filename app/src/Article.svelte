@@ -102,8 +102,8 @@ function getMediaData(mediaId) {
   return null
 }
 
-const processedArticleBlocks = $derived((article.content_state?.blocks || []).map(block => ({
-  key: block.key,
+const processedArticleBlocks = $derived((article.content_state?.blocks || []).map((block, index) => ({
+  key: block.key ?? `block-${index}`,
   type: block.type,
   segments: preprocessBlock(block, article.content_state.entityMap),
 })))
@@ -119,7 +119,7 @@ const groupedBlocks = $derived.by(() => {
         currentList.items.push(block)
       } else {
         if (currentList) result.push(currentList)
-        currentList = { type: 'list', listType, items: [block], key: block.key + '-listwrapper' }
+        currentList = { type: 'list', listType, items: [block], key: `list-${block.key}` }
       }
     } else {
       if (currentList) {

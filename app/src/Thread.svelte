@@ -9,8 +9,8 @@ import Article from './Article.svelte'
 import ThreadHotkeys from './ThreadHotkeys.svelte'
 import ThreadNarrator from './ThreadNarrator.svelte'
 import ColorScroll from './ColorScroll.svelte'
-import { createScriptManager } from './ThreadScript.svelte.js';
-import ThreadScript from './ThreadScript.svelte';
+import { createScriptManager } from './ThreadScript.svelte.js'
+import ThreadScript from './ThreadScript.svelte'
 
 let currentlyReading = $state(null)
 let narratorPlaying = $state(false)
@@ -449,6 +449,11 @@ const convertUser = (u, userData) => {
     username: u.legacy.screen_name || u.core.screen_name,
     name: u.legacy.name || u.core.name,
     avatarUrl: u.legacy?.profile_image_url_https || u.avatar?.image_url,
+    affiliation: u.affiliates_highlighted_label?.label && {
+      name: u.affiliates_highlighted_label.label.description,
+      iconUrl: u.affiliates_highlighted_label.label.badge?.url,
+      url: u.affiliates_highlighted_label.label.url?.url,
+    },
 
     description: u.legacy.description,
     location: u.legacy.location,
@@ -765,7 +770,10 @@ onMount(fetchData)
       {/each}
 
       {#if c.article}
-        <Article article={c.article} {renderComment} {tweets} />
+        <details class="article-details" open={!quotedId && c.depth === 0}>
+          <summary>Article</summary>
+          <Article article={c.article} {renderComment} {tweets} />
+        </details>
       {/if}
     </div>
   </div>
@@ -1141,5 +1149,12 @@ hr {
   padding: 0.5em;
   margin: 1em 0;
   background-color: var(--comment-bg-color);
+}
+.article-details {
+  margin-top: 0.5em;
+}
+.article-details > summary {
+  cursor: pointer;
+  user-select: none;
 }
 </style>
